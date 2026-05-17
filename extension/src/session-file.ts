@@ -3,12 +3,17 @@ import path from 'node:path';
 import * as vscode from 'vscode';
 
 export type SessionFilePayload = {
-  version: number;
+  version?: number;
   skill_id: string;
   correlation_id: string;
   ttl_ms: number;
   started_at: string;
   phase?: string;
+  title?: string;
+  summary?: string;
+  rationale?: string;
+  confidence?: number;
+  warnings?: string[];
 };
 
 export function sessionFilePath(repoRoot: string): string {
@@ -27,13 +32,19 @@ export function readSessionFile(repoRoot: string): SessionFilePayload | null {
   }
 }
 
+export function isSessionFileActive(session: SessionFilePayload): boolean {
+  const started = Date.parse(session.started_at);
+  if (Number.isNaN(started)) return false;
+  const ttl = session.ttl_ms > 0 ? session.ttl_ms : 300_000;
+  return started + ttl > Date.now();
+}
+
 /** Align with MCP: repo root = parent of skills/, or dirname(serverEntry). */
 export function resolveRepoRootForExtension(): string | undefined {
   const config = vscode.workspace.getConfiguration('skillpilot');
   const serverEntry = config.get<string>('serverEntry', '').trim();
   if (serverEntry) {
     const entryDir = path.dirname(path.resolve(serverEntry));
-    // dist/index.js → repo root is parent of dist/, not dist/ itself
     if (path.basename(entryDir) === 'dist') {
       return path.dirname(entryDir);
     }
@@ -59,4 +70,3 @@ export function resolveRepoRootForExtension(): string | undefined {
 
   return folders[0]?.uri.fsPath;
 }
-

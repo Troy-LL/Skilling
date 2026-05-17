@@ -91,6 +91,8 @@ async function main() {
     const cleaned = runCleanup(repoRoot, correlation_id);
     if (cleaned) {
       fs.unlinkSync(hit.file);
+      const bodyFile = path.join(repoRoot, '.skillpilot', 'active-body.md');
+      if (fs.existsSync(bodyFile)) fs.unlinkSync(bodyFile);
       log(eventName, `cleanup ok for ${skill_id} (${correlation_id})`);
     } else {
       log(eventName, `cleanup failed for ${skill_id}; session file kept`);

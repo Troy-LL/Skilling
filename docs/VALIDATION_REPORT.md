@@ -118,11 +118,20 @@ This confirmed **Cursor can drive the SkillPilot stdio MCP server** and the **`l
 - **A — Extension / TTL** — Sprint C + Sprint E **Register Active Session** (session file SOT).
 - **B — Catalog** — Sprint D (`find-skills`, `ingest`, `docs/SKILLS_CATALOG.md`).
 
+**Completed (Sprint F, 2026-05-17):**
+
+- Session SOT v2 (`summary`, `rationale`, `title` on disk).
+- `begin_task` `response_detail: summary` (default); `get_session` enrichment.
+- `beforeSubmitPrompt` auto-begin hook + `active-body.md` bridge.
+- Extension `skillpilot.autoRegisterSession` + rich status bar.
+- Skills: `create-hook`, `create-rule` imported; orchestrator v1.1.
+
 **Next optional work:**
 
-- **E2 Phase 2** — `afterMCPExecution` session sync, `beforeSubmitPrompt` TTL reminder (see `docs/AUTONOMOUS_USAGE.md`).
+- `afterMCPExecution` session sync (low priority).
 - VS Code MCP + extension check.
 - Packaged VSIX / extension cleanup without repo `node_modules`.
+- Remove `active-body.md` bridge when Cursor supports `additional_context` on `beforeSubmitPrompt`.
 
 **Spike (Sprint C):** Cursor does **not** expose MCP tool results to extensions; **command-based** register (clipboard or session file) + status bar TTL + dismiss → `cleanup` via `scripts/extension-cleanup.mjs`.
 
@@ -162,6 +171,16 @@ This confirmed **Cursor can drive the SkillPilot stdio MCP server** and the **`l
 - [ ] Extension: **Dismiss Active Skill** → MCP **`cleanup`** `ok: true` *(optional explicit retest; Sprint C path already validated cleanup)*
 - [x] E2 Phase 1: **`sessionEnd`** hook → cleanup + clear session (see **`docs/AUTONOMOUS_USAGE.md`** § E2)
 - [ ] E2 manual: `begin_task` → close composer → session file gone; Hooks output shows `skillpilot-session-end`
+
+### Sprint F — manual verification (Cursor)
+
+- [ ] `npm run test:auto-begin-hook` passes after `npm run build`
+- [ ] Reload hooks; send coding prompt → `session.json` + `active-body.md` without agent `begin_task`
+- [ ] Second prompt → hook skips (Hooks stderr: `skip begin_task`)
+- [ ] Extension status bar auto-appears (`skillpilot.autoRegisterSession`)
+- [ ] Agent reply is one line (no skill menu); uses `summary` from session
+- [ ] `find a skill for X` routes to `find-skills`; normal fix-CI prompt does not show `list`
+- [ ] Opt-out: `.skillpilot/disable-auto-begin` or `SKILLPILOT_SKIP_AUTO_BEGIN=1` disables hook
 
 ---
 

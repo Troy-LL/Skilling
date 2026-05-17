@@ -1,5 +1,5 @@
 ---
-description: SkillPilot MCP lifecycle — begin_task, work, end_task. Do not read skills/ directly.
+description: SkillPilot MCP lifecycle — auto-routing, begin_task, work, end_task. Do not read skills/ directly.
 alwaysApply: true
 ---
 
@@ -7,20 +7,38 @@ alwaysApply: true
 
 Use the **SkillPilot** MCP server for procedural skills. Do not read `skills/**/SKILL.md` from disk unless debugging.
 
+## Autonomous routing (Sprint F)
+
+A **`beforeSubmitPrompt`** hook may auto-run `begin_task` and write:
+
+- **`.skillpilot/session.json`** — active episode SOT (skill, summary, rationale, TTL)
+- **`.skillpilot/active-body.md`** — ephemeral skill body bridge (follow for this turn)
+
+If the session is already active and not expired, the hook skips routing. Opt-out: env `SKILLPILOT_SKIP_AUTO_BEGIN=1` or file `.skillpilot/disable-auto-begin`.
+
 ## Start of a focused task
 
-1. Call **`get_session`** if unsure whether a skill episode is already active.
-2. Call **`begin_task`** with the user's goal as `prompt` and optional `phase`: `plan`, `implement`, `review`, or `ci`.
-3. Follow the returned **`body`** for this task only until **`end_task`**.
-4. Optional: run **SkillPilot: Register Active Session** (extension) after `begin_task` for TTL/cleanup UX.
+1. If **`.skillpilot/active-body.md`** exists, follow it for this turn.
+2. Else call **`get_session`**; if `active: false`, call **`begin_task`** with the user's goal (`response_detail` defaults to summary).
+3. Do **not** call **`begin_task`** again if the hook already routed unless switching topics (then **`end_task`** first).
+4. Follow skill **`body`** until the stage is done.
+5. Extension auto-registers TTL when `skillpilot.autoRegisterSession` is enabled (default).
+
+## User-facing presentation
+
+- After routing: **one sentence** using `summary` from the tool or session — never show skill menus, `alternatives`, or `list` output.
+- Do not ask the user to pick a `skill_id`.
 
 ## End or switch tasks
 
-- Before an unrelated topic or new dev stage: call **`end_task`** (uses `.skillpilot/session.json` when `correlation_id` is omitted).
-- Then **`begin_task`** again for the new work.
-- Closing the composer also runs the **sessionEnd** hook (MCP `cleanup` + clears `.skillpilot/session.json`); prefer **`end_task`** when switching topics inside the same chat.
+- Before an unrelated topic or new dev stage: **`end_task`** (uses `.skillpilot/session.json` when `correlation_id` is omitted).
+- Closing the composer runs **`sessionEnd`** cleanup + clears session and bridge files.
 
-## Catalog and discovery
+## Catalog vs routing
 
-- To add skills from the ecosystem: follow **find-skills** and [docs/SKILLS_CATALOG.md](docs/SKILLS_CATALOG.md) (`skills:add`, `ingest`).
-- Low-level tools (`list`, `select`, `load`, `cleanup`) are for debugging; prefer **`begin_task`** / **`end_task`** in normal work.
+- **Normal coding / task work** — `begin_task` + orchestrator procedure; not `list`.
+- **Discover or install skills** — **`find-skills`** and [docs/SKILLS_CATALOG.md](docs/SKILLS_CATALOG.md) only when the user wants catalog growth.
+
+## Debugging only
+
+- Low-level tools (`list`, `select`, `load`, `cleanup`) — not for normal work.

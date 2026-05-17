@@ -33,7 +33,7 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
 
   const mcp = new McpServer({
     name: 'skillpilot',
-    version: '1.2.0',
+    version: '1.3.0',
     title: 'SkillPilot',
   });
 
@@ -61,6 +61,16 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
     {
       description:
         'Read the active SkillPilot task session from .skillpilot/session.json. Use before begin_task to avoid duplicate episodes.',
+      inputSchema: {
+        include_summary: z
+          .boolean()
+          .optional()
+          .describe('When active, include title/summary/rationale (default true)'),
+        include_body: z
+          .boolean()
+          .optional()
+          .describe('When active, include full skill body (default false)'),
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -68,8 +78,13 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
         openWorldHint: false,
       },
     },
-    async () => {
-      return toolOk(getSession(repoRoot));
+    async (input) => {
+      return toolOk(
+        getSession(rootDisplay, repoRoot, {
+          include_summary: input.include_summary,
+          include_body: input.include_body,
+        }),
+      );
     },
   );
 
@@ -92,6 +107,10 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
           .boolean()
           .optional()
           .describe('If true (default), cleanup prior session before starting'),
+        response_detail: z
+          .enum(['summary', 'full'])
+          .optional()
+          .describe('summary (default) omits alternatives; full returns debug fields'),
       },
       annotations: {
         readOnlyHint: false,
@@ -111,6 +130,7 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
             skill_id: input.skill_id,
             phase: input.phase,
             end_previous: input.end_previous,
+            response_detail: input.response_detail,
           }),
         );
       } catch (e) {
@@ -174,7 +194,7 @@ export function createSkillPilotServer(skillRoot: string): McpServer {
     async ({ prompt, goal, client, workspace_path }) => {
       const trimmedPrompt = prompt.trim();
       if (!trimmedPrompt && !(goal?.trim())) {
-        return toolError('select requires a non-empty prompt or goal. Call list to browse skills.');
+        return toolError('select requires a non-empty prompt or goal.');
       }
       if (prompt.length > MAX_SELECT_INPUT_CHARS || (goal?.length ?? 0) > MAX_SELECT_INPUT_CHARS) {
         return toolError(`prompt and goal must each be at most ${MAX_SELECT_INPUT_CHARS} characters.`);

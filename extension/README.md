@@ -6,8 +6,9 @@ Works in **Cursor** and **VS Code**. Requires the SkillPilot MCP server (`dist/i
 
 ## Features
 
-- **Register Active Session** — reads `.skillpilot/session.json` after MCP `begin_task` (no clipboard).
-- **Status bar** — `Skill: <id> (Nm)` countdown; click to dismiss and cleanup.
+- **Auto-register session** (Sprint F) — watches `.skillpilot/session.json` when `skillpilot.autoRegisterSession` is true (default).
+- **Register Active Session** — manual register from session file (no clipboard).
+- **Status bar** — skill **title** and TTL; tooltip shows **summary** / **rationale**; click to dismiss and cleanup.
 - **Register from load JSON** — paste the MCP `load` / `begin_task` tool result from clipboard.
 - **Manual register** — wizard for `correlation_id`, `skill_id`, and TTL.
 - **Auto-cleanup on TTL** — spawns `extension-cleanup.mjs` to call MCP `cleanup` (configurable).
@@ -25,9 +26,9 @@ Works in **Cursor** and **VS Code**. Requires the SkillPilot MCP server (`dist/i
 2. Set **`skillpilot.serverEntry`** to your absolute path:  
    `P:\path\to\SkillPilot\dist\index.js`
 3. Optional: **`skillpilot.skillRoot`** → `...\SkillPilot\skills`
-4. In chat: MCP **`begin_task`** with your task prompt.
-5. Command Palette → **SkillPilot: Register Active Session**.
-6. When done: click the status bar or run **Dismiss Active Skill**, or MCP **`end_task`** in chat.
+4. Send a chat prompt (Sprint F hook may auto-`begin_task`) or run MCP **`begin_task`** manually.
+5. Status bar should appear automatically; or Command Palette → **Register Active Session**.
+6. When done: click the status bar, **Dismiss Active Skill**, MCP **`end_task`**, or close the composer (`sessionEnd` hook).
 
 ## Commands
 

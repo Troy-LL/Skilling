@@ -46,17 +46,33 @@ try {
     console.error('begin_task: unexpected payload', begin);
     process.exit(1);
   }
-  console.log('Step begin_task: ok, skill_id:', begin.skill_id);
+  if (!begin.summary || begin.alternatives !== undefined) {
+    console.error('begin_task: expected summary mode without alternatives', begin);
+    process.exit(1);
+  }
+  console.log('Step begin_task (summary): ok, skill_id:', begin.skill_id);
 
   if (!fs.existsSync(sessionFile)) {
     console.error('begin_task: session file missing at', sessionFile);
     process.exit(1);
   }
-  console.log('Step session file: ok');
+  const onDisk = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
+  if (!onDisk.summary || !onDisk.rationale || onDisk.version !== 2) {
+    console.error('session file: expected v2 summary/rationale', onDisk);
+    process.exit(1);
+  }
+  console.log('Step session file (v2): ok');
 
-  const getRes = await client.callTool({ name: 'get_session', arguments: {} });
+  const getRes = await client.callTool({
+    name: 'get_session',
+    arguments: { include_summary: true },
+  });
   if (getRes.isError || !getRes.structuredContent?.active) {
     console.error('get_session failed:', getRes.structuredContent);
+    process.exit(1);
+  }
+  if (!getRes.structuredContent.summary) {
+    console.error('get_session: missing summary');
     process.exit(1);
   }
   console.log('Step get_session: ok');

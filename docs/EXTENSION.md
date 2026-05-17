@@ -34,10 +34,11 @@ Reload the window. Set `skillpilot.serverEntry` in Settings.
 | **`skillpilot.autoCleanupOnTtl`** | Call MCP `cleanup` when TTL fires (default `true`). |
 | **`skillpilot.promptBeforeCleanup`** | Confirm before TTL cleanup (default `false`). |
 | **`skillpilot.ttlMsOverride`** | If `> 0`, ignore load `ttl_ms` and use this value (ms). |
+| **`skillpilot.autoRegisterSession`** | Watch `.skillpilot/session.json` and start TTL automatically (default `true`). |
 
 ## Workflow
 
-**Sprint E (preferred):** run MCP **`begin_task`**, then **`SkillPilot: Register Active Session`** — reads **`.skillpilot/session.json`** (no clipboard).
+**Sprint F (preferred):** hook or agent runs **`begin_task`** → extension **auto-registers** when **`skillpilot.autoRegisterSession`** is true (default). Manual **`SkillPilot: Register Active Session`** still available.
 
 **Sprint C (manual):**
 
@@ -68,9 +69,9 @@ When a **composer conversation ends**, the project **`sessionEnd`** hook (`.curs
 
 Reload Cursor after changing hooks. See **`docs/AUTONOMOUS_USAGE.md`** § E2.
 
-## Limitations (v0.1)
+## Limitations (v0.3)
 
-- No automatic register when the agent calls `begin_task`; registration is **explicit** (or rely on `sessionEnd` for cleanup only).
+- Auto-register requires resolving repo root via `skillpilot.serverEntry` / `skillpilot.skillRoot` or an open workspace containing `.skillpilot/session.json`.
 - Cleanup spawns a **separate** MCP process; correlation ids are only meaningful in the **same** server process as the agent’s session for bookkeeping — MCP `cleanup` is still **idempotent** at the protocol level.
 - Packaged VSIX must include `extension/scripts/extension-cleanup.mjs` and the user must have the SkillPilot repo’s `node_modules` (run from repo layout) or future packaging work.
 

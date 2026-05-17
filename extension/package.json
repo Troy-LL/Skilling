@@ -2,7 +2,7 @@
   "name": "skillpilot-lifecycle",
   "displayName": "SkillPilot Lifecycle",
   "description": "Status-bar TTL and MCP cleanup for SkillPilot skill sessions (begin_task / load). Register from .skillpilot/session.json or clipboard.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "skillpilot",
   "license": "ISC",
   "engines": {
@@ -87,6 +87,11 @@
           "default": 0,
           "minimum": 0,
           "description": "If greater than 0, use this TTL in milliseconds instead of the value from load/begin_task."
+        },
+        "skillpilot.autoRegisterSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch .skillpilot/session.json and start status-bar TTL automatically when it changes."
         }
       }
     }

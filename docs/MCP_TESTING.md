@@ -9,7 +9,9 @@ npm run smoke     # stdio MCP: list → begin_task → get_session → end_task 
 
 CI runs `npm ci`, `npm test`, and `npm run smoke` on pull requests.
 
-**E2 sessionEnd hook** (manual): after `begin_task`, run `npm run test:session-end-hook` or close the composer and check Hooks output / that `.skillpilot/session.json` is removed.
+**E2 sessionEnd hook:** `npm run test:session-end-hook` (or close the composer and check Hooks output).
+
+**Sprint F auto-begin hook:** `npm run test:auto-begin-hook` (requires `npm run build`). Verifies `session.json` v2, `active-body.md` bridge, and skip-on-active-session.
 
 ## MCP Inspector (manual)
 

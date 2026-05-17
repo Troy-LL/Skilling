@@ -10,8 +10,12 @@ Path: **`.skillpilot/session.json`** at the repo root (gitignored). Written by *
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "skill_id": "find-skills",
+  "title": "Find Skills",
+  "summary": "Using Find Skills — matched tag:skills.",
+  "rationale": "Selected \"Find Skills\" (find-skills) with score 8; matched tag:skills.",
+  "confidence": 0.72,
   "correlation_id": "uuid",
   "ttl_ms": 300000,
   "started_at": "2026-05-14T12:00:00.000Z",
@@ -68,23 +72,72 @@ npm run build
 npm run test:session-end-hook
 ```
 
-### E2 — Deferred
+### E2 — Deferred (partially delivered in F)
 
 | Hook | Purpose |
 |------|---------|
-| `afterMCPExecution` (matcher: `begin_task` / `load`) | Backup session sync (usually redundant) |
+| `afterMCPExecution` (matcher: `begin_task` / `load`) | Backup session sync (optional; not implemented) |
 | `stop` | Only if Cursor adds a narrower “conversation idle” signal |
-| `beforeSubmitPrompt` | TTL reminder when session expired |
 
-**Not in E2:** silent system-prompt injection from hooks (host API limits).
+## F — Autonomous routing and presentation (implemented)
+
+### Session file v2
+
+**`.skillpilot/session.json`** now includes `title`, `summary`, `rationale`, `confidence`, optional `warnings`, and `prompt_fingerprint`. Legacy v1 files are read with sensible defaults.
+
+### MCP presentation
+
+| Feature | Behavior |
+|---------|----------|
+| **`begin_task`** `response_detail` | Default **`summary`** — omits `alternatives`; use **`full`** for debugging |
+| **`get_session`** | Optional `include_summary` (default true when active), `include_body` (default false) |
+| No-match errors | Agent-directed only — do not encourage skill menus for users |
+
+### Auto `begin_task` hook
+
+**`beforeSubmitPrompt`** → [`.cursor/hooks/skillpilot-auto-begin.mjs`](../.cursor/hooks/skillpilot-auto-begin.mjs):
+
+| Step | Behavior |
+|------|----------|
+| 1 | Skip if opt-out (`SKILLPILOT_SKIP_AUTO_BEGIN=1` or `.skillpilot/disable-auto-begin`) |
+| 2 | Skip if session exists and TTL not expired |
+| 3 | If expired → cleanup, then `begin_task` via [`scripts/extension-begin-task.mjs`](../scripts/extension-begin-task.mjs) |
+| 4 | Write **`.skillpilot/active-body.md`** bridge (ephemeral skill body) |
+| 5 | Return `{ "continue": true }` (fail-open on errors) |
+
+Reload Cursor after changing [`.cursor/hooks.json`](../.cursor/hooks.json). Requires `npm run build`.
+
+**Local test:**
+
+```powershell
+npm run build
+npm run test:auto-begin-hook
+```
+
+### Bridge file (host limit workaround)
+
+Cursor **`beforeSubmitPrompt`** cannot inject `additional_context` yet. Agents follow **`.skillpilot/active-body.md`** when present (see lifecycle rule). Remove bridge when Cursor supports prompt-time injection.
+
+### Extension (Sprint F)
+
+- **`skillpilot.autoRegisterSession`** (default `true`) — watches `session.json` and starts status-bar TTL automatically.
+- Status bar shows **title** / tooltip with **summary** and **rationale**.
+
+### Agent presentation (policy)
+
+- One-line user summary after routing; never show `alternatives` or `list` output.
+- **`find-skills`** only when the user wants catalog discovery/install — not normal coding prompts.
+
+**Not in F:** silent system-prompt injection from hooks (host API limits).
 
 ## Manual validation
 
-1. `npm run build` && `npm test` && `npm run smoke`
-2. Reload Cursor MCP; confirm `begin_task`, `end_task`, `get_session`
-3. Chat: `begin_task` for a review prompt → check `.skillpilot/session.json`
-4. `end_task` → file removed, `ok: true`
-5. Extension: Register Active Session → dismiss (optional; E2 `sessionEnd` also cleans up when the composer closes)
+1. `npm run build` && `npm test` && `npm run smoke` && `npm run test:auto-begin-hook`
+2. Reload Cursor MCP and hooks; confirm `begin_task`, `end_task`, `get_session`
+3. Send a coding prompt → hook creates `session.json` + `active-body.md` without agent calling `begin_task`
+4. Second prompt in same chat → hook skips (active session)
+5. `end_task` or close composer → session + bridge cleared
+6. Extension: status bar appears without manual Register (when `skillpilot.autoRegisterSession` is true)
 
 Record results in [VALIDATION_REPORT.md](VALIDATION_REPORT.md).
 

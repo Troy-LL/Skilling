@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ActiveSkillManager } from './active-skill.js';
 import { readSessionFile, resolveRepoRootForExtension, sessionFilePath } from './session-file.js';
+import { SessionWatcher } from './session-watcher.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,6 +32,22 @@ function parseLoadPayload(raw: string): LoadPayload {
 export function activate(context: vscode.ExtensionContext): void {
   const manager = new ActiveSkillManager(context, context.extensionPath);
   context.subscriptions.push({ dispose: () => manager.dispose() });
+
+  let sessionWatcher = new SessionWatcher(manager, effectiveTtlMs);
+  sessionWatcher.start();
+  context.subscriptions.push({
+    dispose: () => sessionWatcher.dispose(),
+  });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('skillpilot.autoRegisterSession')) {
+        sessionWatcher.dispose();
+        sessionWatcher = new SessionWatcher(manager, effectiveTtlMs);
+        sessionWatcher.start();
+      }
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand('skillpilot.registerActiveSkill', async () => {
@@ -78,14 +95,9 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         return;
       }
-      manager.register(
-        session.correlation_id,
-        session.skill_id,
-        effectiveTtlMs(session.ttl_ms),
-      );
-      vscode.window.showInformationMessage(
-        `SkillPilot: tracking ${session.skill_id} from session file.`,
-      );
+      manager.registerFromSession(session, effectiveTtlMs(session.ttl_ms));
+      const label = session.title ?? session.skill_id;
+      vscode.window.showInformationMessage(`SkillPilot: tracking ${label} from session file.`);
     }),
   );
 
@@ -117,5 +129,5 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-  // ActiveSkillManager cleared via subscription dispose on unload.
+  // Disposed via subscriptions.
 }

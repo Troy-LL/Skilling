@@ -89,7 +89,7 @@ export function selectSkill(candidates: SkillFrontMatter[], input: SelectInput):
       skill_id: null,
       confidence: 0,
       rationale:
-        'No skill matched strongly enough for this prompt. Call list to browse skills or load a skill_id directly.',
+        'No skill matched strongly enough for this prompt. Agent: pass skill_id to begin_task, ingest a matching skill, or improve skill tags/triggers — do not present a skill menu to the user.',
       warnings: ['low_confidence'],
       alternatives: alternatives.length ? alternatives : undefined,
     };

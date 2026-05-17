@@ -2,7 +2,7 @@
 
 SkillPilot is a **stdio MCP server** that exposes a filesystem-backed skill store with lifecycle tools **`begin_task`** / **`end_task`**, plus **`list`**, **`select`**, **`load`**, **`cleanup`**, and **`ingest`**. It follows `architecture.md` and `skill-rules.md`, with v1-specific notes in **`v1-exceptions.md`**.
 
-**Autonomous usage (Sprint E):** see **`docs/AUTONOMOUS_USAGE.md`** and **`.cursor/rules/skillpilot-lifecycle.mdc`**.
+**Autonomous usage (Sprint E/F):** see **`docs/AUTONOMOUS_USAGE.md`** and **`.cursor/rules/skillpilot-lifecycle.mdc`**. Sprint F adds a **`beforeSubmitPrompt`** hook (auto `begin_task`), session v2 SOT, and extension auto-register.
 
 ## Requirements
 
@@ -38,9 +38,9 @@ node dist/index.js
 
 | Tool | Purpose |
 |------|---------|
-| **`begin_task`** | **`select`** + **`load`** + write **`.skillpilot/session.json`**. Prefer at task start. |
-| **`end_task`** | **`cleanup`** + clear session. Prefer before topic change. |
-| **`get_session`** | Read active session or `{ active: false }`. |
+| **`begin_task`** | **`select`** + **`load`** + write **`.skillpilot/session.json`** (v2: summary, rationale). Default `response_detail: summary` omits alternatives. |
+| **`end_task`** | **`cleanup`** + clear session and bridge files. Prefer before topic change. |
+| **`get_session`** | Read active session; optional `include_summary`, `include_body`. |
 | **`list`** | Returns `id`, `title`, `summary`, optional `tags` and `version` for every valid skill. Fails closed if any folder under the root is invalid or ids collide. |
 | **`select`** | Input: `prompt` (+ optional `goal`, `client`, `workspace_path`). Heuristic match → `skill_id`, `confidence`, `rationale`, optional `warnings` / `alternatives`. No LLM. |
 | **`ingest`** | Import from `.agents/skills/<folder>` into `SKILL_ROOT` (after local `npx skills add`). |
@@ -62,6 +62,8 @@ Size limits and path rules match **`skill-rules.md` §8–§9** and **`v1-except
 | **`npm run mcp`** | Same as `start` |
 | **`npm test`** | Build + **`node:test`** unit tests (`dist/*.test.js`) |
 | **`npm run smoke`** | Spawns stdio MCP and runs `list` → `begin_task` → `get_session` → `end_task` ×2 (no IDE required) |
+| **`npm run test:auto-begin-hook`** | Simulates Sprint F `beforeSubmitPrompt` hook (requires `build`) |
+| **`npm run test:session-end-hook`** | Simulates E2 `sessionEnd` hook |
 | **`npm run skills:add -- <pkg>`** | `npx skills add` into this repo’s `.agents/skills` (no `-g`), then import to `skills/` |
 | **`npm run skills:import -- <folder>`** | Import `.agents/skills/<folder>` → `skills/` only |
 

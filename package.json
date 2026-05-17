@@ -11,6 +11,7 @@
     "test": "npm run build && node --test dist/*.test.js",
     "smoke": "node scripts/mcp-smoke.mjs",
     "test:session-end-hook": "node scripts/test-session-end-hook.mjs",
+    "test:auto-begin-hook": "node scripts/test-auto-begin-hook.mjs",
     "skills:add": "node scripts/skills-add-local.mjs",
     "skills:import": "node scripts/import-skill.mjs"
   },

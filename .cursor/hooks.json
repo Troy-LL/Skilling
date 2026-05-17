@@ -1,6 +1,12 @@
 {
   "version": 1,
   "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "node .cursor/hooks/skillpilot-auto-begin.mjs",
+        "timeout": 60
+      }
+    ],
     "sessionEnd": [
       {
         "command": "node .cursor/hooks/skillpilot-session-end.mjs",
