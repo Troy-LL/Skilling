@@ -1,10 +1,18 @@
 import { parse as parseYaml } from 'yaml';
+import type { InjectMode } from './shape-body.js';
+import {
+  applyMetaOverlay,
+  type ParseSkillOptions,
+} from './skill-meta-overlay.js';
 import { estimateTokens } from './token-estimate.js';
 import {
   isValidSkillId,
   validateBodyUtf8Length,
   validateClients,
   validateInject,
+  validateInjectBrief,
+  validateInjectMode,
+  validateInjectSections,
   validateMinConfidence,
   validateSummary,
   validateTags,
@@ -25,6 +33,9 @@ export type SkillFrontMatter = {
   clients?: string[];
   token_estimate?: number;
   inject?: boolean;
+  inject_mode_default?: InjectMode;
+  inject_sections?: string[];
+  inject_brief?: string;
   ttl_seconds?: number;
   min_confidence?: number;
 };
@@ -33,6 +44,8 @@ export type ParsedSkillFile = {
   meta: SkillFrontMatter;
   body: string;
 };
+
+export type { ParseSkillOptions };
 
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
 
@@ -71,6 +84,7 @@ function normalizeId(candidate: string, folder: string): string {
 function metaFromFrontMatterRecord(
   rec: Record<string, unknown>,
   folderDerivedId: string,
+  bodyText: string,
 ): SkillFrontMatter {
   const hasStrictId = typeof rec['id'] === 'string' && isValidSkillId(rec['id']);
   const id = hasStrictId
@@ -100,7 +114,7 @@ function metaFromFrontMatterRecord(
   const inject = validateInject(rec['inject']) ?? true;
   let token_estimate = validateTokenEstimate(rec['token_estimate']);
   if (token_estimate === undefined) {
-    token_estimate = estimateTokens(String(rec['description'] ?? summaryRaw));
+    token_estimate = estimateTokens(bodyText);
   }
 
   return {
@@ -113,13 +127,20 @@ function metaFromFrontMatterRecord(
     clients: validateClients(rec['clients']),
     token_estimate,
     inject,
+    inject_mode_default: validateInjectMode(rec['inject_mode_default']),
+    inject_sections: validateInjectSections(rec['inject_sections']),
+    inject_brief: validateInjectBrief(rec['inject_brief']),
     ttl_seconds: validateTtlSeconds(rec['ttl_seconds']),
     min_confidence: validateMinConfidence(rec['min_confidence']),
   };
 }
 
 /** Parse SKILL.md with ecosystem aliases (name/description) or strict SkillPilot front matter. */
-export function parseSkillFile(rawUtf8: string, folderDerivedId: string): ParsedSkillFile {
+export function parseSkillFile(
+  rawUtf8: string,
+  folderDerivedId: string,
+  options?: ParseSkillOptions,
+): ParsedSkillFile {
   const m = rawUtf8.match(FRONT_MATTER);
   if (!m?.[1] || m[2] === undefined) {
     throw new Error('SKILL.md must start with YAML front matter delimited by --- lines');
@@ -135,17 +156,22 @@ export function parseSkillFile(rawUtf8: string, folderDerivedId: string): Parsed
     throw new Error('YAML front matter must parse to a mapping object');
   }
   const rec = data as Record<string, unknown>;
-  const meta = metaFromFrontMatterRecord(rec, folderDerivedId);
+  const body = m[2];
+  validateBodyUtf8Length(body);
+  let meta = metaFromFrontMatterRecord(rec, folderDerivedId, body);
   if (meta.id !== folderDerivedId) {
     throw new Error(
       `id "${meta.id}" does not match folder name "${folderDerivedId}" (rename folder or fix front matter)`,
     );
   }
-  const body = m[2];
-  validateBodyUtf8Length(body);
+  meta = applyMetaOverlay(meta, options?.skillsMetaDir);
   return { meta, body };
 }
 
-export function parseSkillMarkdown(rawUtf8: string, folderDerivedId: string): ParsedSkillFile {
-  return parseSkillFile(rawUtf8, folderDerivedId);
+export function parseSkillMarkdown(
+  rawUtf8: string,
+  folderDerivedId: string,
+  options?: ParseSkillOptions,
+): ParsedSkillFile {
+  return parseSkillFile(rawUtf8, folderDerivedId, options);
 }

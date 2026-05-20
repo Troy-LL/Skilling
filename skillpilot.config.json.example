@@ -1,6 +1,7 @@
 {
   "skillsRoot": "./.agents/skills",
   "selector": "heuristic",
+  "defaultInjectMode": "compact",
   "maxInjectBytes": 8192,
   "defaultTokenBudget": 2048,
   "ttlSeconds": 300,

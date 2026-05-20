@@ -52,6 +52,24 @@ describe('selectFromCandidates', () => {
     assert.ok(r.confidence >= 0.1);
   });
 
+  it('scores >= 0.35 without low_confidence when tags and triggers match', () => {
+    const mcpBuilder: SkillFrontMatter = {
+      id: 'mcp-builder',
+      title: 'MCP Builder',
+      summary: 'Build MCP servers with tools and evaluation.',
+      tags: ['mcp', 'server', 'python', 'api', 'tools'],
+      triggers: ['build an mcp server', 'create an mcp server'],
+      token_estimate: 3000,
+      inject: true,
+    };
+    const r = selectFromCandidates([mcpBuilder, orchestrator], {
+      prompt: 'build a new MCP server with Python tools, evaluation harness, and testing',
+    });
+    assert.equal(r.skill_id, 'mcp-builder');
+    assert.ok(r.confidence >= 0.35);
+    assert.ok(!r.warnings?.includes('low_confidence'));
+  });
+
   it('picks code review for review-oriented prompt', () => {
     const r = selectFromCandidates(candidates, {
       prompt: 'Please do a code review of this diff and find security issues',

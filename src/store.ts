@@ -3,6 +3,7 @@ import path from 'node:path';
 import { SkillPilotError } from './errors.js';
 import { parseSkillFile } from './parse.js';
 import type { SkillFrontMatter } from './parse.js';
+import { resolveSkillsMetaDir } from './skill-meta-overlay.js';
 import { validatePrimarySize } from './validate.js';
 
 export type SkillListEntry = {
@@ -78,8 +79,9 @@ function readSkillFile(rootReal: string, folderName: string): { text: string } {
   return { text };
 }
 
-export function buildIndex(skillRoot: string): SkillIndex {
+export function buildIndex(skillRoot: string, skillsMetaDir?: string): SkillIndex {
   const rootReal = resolveSkillRoot(skillRoot);
+  const metaDir = skillsMetaDir ?? resolveSkillsMetaDir(rootReal);
   const entries: { folder: string; meta: SkillFrontMatter }[] = [];
   const failures: IndexFailure[] = [];
   const dirents = fs.readdirSync(rootReal, { withFileTypes: true });
@@ -88,7 +90,7 @@ export function buildIndex(skillRoot: string): SkillIndex {
     const folder = d.name;
     try {
       const { text } = readSkillFile(rootReal, folder);
-      const { meta } = parseSkillFile(text, folder);
+      const { meta } = parseSkillFile(text, folder, { skillsMetaDir: metaDir });
       if (meta.inject === false) continue;
       entries.push({ folder, meta });
     } catch (e) {
@@ -138,13 +140,14 @@ export function buildIndex(skillRoot: string): SkillIndex {
   return { ok: true, skills, paths, metas };
 }
 
-export function getSkillIndex(skillRoot: string): SkillIndex {
+export function getSkillIndex(skillRoot: string, skillsMetaDir?: string): SkillIndex {
   const rootReal = resolveSkillRoot(skillRoot);
+  const metaDir = skillsMetaDir ?? resolveSkillsMetaDir(rootReal);
   let mtimeMs = 0;
   try {
     mtimeMs = fs.statSync(rootReal).mtimeMs;
   } catch {
-    return buildIndex(skillRoot);
+    return buildIndex(skillRoot, metaDir);
   }
   if (
     indexCache &&
@@ -153,7 +156,7 @@ export function getSkillIndex(skillRoot: string): SkillIndex {
   ) {
     return indexCache.index;
   }
-  const index = buildIndex(skillRoot);
+  const index = buildIndex(skillRoot, metaDir);
   indexCache = { rootReal, mtimeMs, index };
   return index;
 }
@@ -161,8 +164,9 @@ export function getSkillIndex(skillRoot: string): SkillIndex {
 export function loadSkillBody(
   skillRoot: string,
   skillId: string,
+  skillsMetaDir?: string,
 ): { meta: SkillFrontMatter; body: string } {
-  const index = getSkillIndex(skillRoot);
+  const index = getSkillIndex(skillRoot, skillsMetaDir);
   if (!index.ok) {
     throw new SkillPilotError('STORE_UNAVAILABLE', index.error);
   }
@@ -182,7 +186,8 @@ export function loadSkillBody(
   validatePrimarySize(buf);
   const text = buf.toString('utf8');
   const folder = path.basename(path.dirname(file));
-  return parseSkillFile(text, folder);
+  const metaDir = skillsMetaDir ?? resolveSkillsMetaDir(rootReal);
+  return parseSkillFile(text, folder, { skillsMetaDir: metaDir });
 }
 
 export function formatIndexError(index: Extract<SkillIndex, { ok: false }>): string {

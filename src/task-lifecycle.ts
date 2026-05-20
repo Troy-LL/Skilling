@@ -7,7 +7,7 @@ import { logToolOk } from './observability.js';
 import { resolveRepoRoot } from './import-skill.js';
 import { getSelector } from './selector/index.js';
 import type { SelectResult } from './selector/types.js';
-import { shapeSkillBody } from './shape-body.js';
+import { resolveInjectMode, shapeSkillBody, type InjectMode } from './shape-body.js';
 import {
   clearSession,
   readSession,
@@ -31,6 +31,7 @@ export type LoadEpisodeResult = {
   ttl_ms: number;
   correlation_id: string;
   merge_hint: { role: 'system'; ephemeral: boolean };
+  inject_mode: InjectMode;
 };
 
 export type BeginTaskInput = {
@@ -42,6 +43,7 @@ export type BeginTaskInput = {
   skill_id?: string;
   phase?: string;
   token_budget?: number;
+  inject_mode?: InjectMode;
   end_previous?: boolean;
   response_detail?: ResponseDetail;
 };
@@ -106,12 +108,27 @@ export function loadSkillEpisode(
   skillId: string,
   config: SkillPilotConfig,
   correlationId?: string,
+  options?: { inject_mode?: InjectMode; token_budget?: number },
 ): LoadEpisodeResult {
   const err = validateSkillIdForLoad(skillId);
   if (err) throw new SkillPilotError('VALIDATION_ERROR', err);
 
-  const { meta, body: rawBody } = loadSkillBody(skillRoot, skillId);
-  const shaped = shapeSkillBody(rawBody, config.maxInjectBytes);
+  const { meta, body: rawBody } = loadSkillBody(skillRoot, skillId, config.skillsMetaDir);
+  const mode = resolveInjectMode(
+    options?.inject_mode,
+    meta,
+    options?.token_budget,
+    config.defaultInjectMode,
+  );
+  const shaped = shapeSkillBody(rawBody, config.maxInjectBytes, {
+    mode,
+    meta: {
+      title: meta.title,
+      summary: meta.summary,
+      inject_brief: meta.inject_brief,
+    },
+    injectSections: meta.inject_sections,
+  });
   const correlation_id = correlationId ?? randomUUID();
   correlationRegistry.add(correlation_id);
   const ttl_ms = ttlMsFromMeta(meta, config);
@@ -120,6 +137,7 @@ export function loadSkillEpisode(
     skill_id: meta.id,
     correlation_id,
     token_estimate: shaped.token_estimate,
+    inject_mode: shaped.inject_mode,
     version: meta.version,
   });
 
@@ -132,6 +150,7 @@ export function loadSkillEpisode(
     ttl_ms,
     correlation_id,
     merge_hint: { role: 'system', ephemeral: true },
+    inject_mode: shaped.inject_mode,
   };
 }
 
@@ -194,7 +213,7 @@ export function beginTask(
   };
 
   if (!skillId) {
-    const index = getSkillIndex(skillRoot);
+    const index = getSkillIndex(skillRoot, config.skillsMetaDir);
     if (!index.ok) throw new SkillPilotError('STORE_UNAVAILABLE', formatIndexError(index));
     const result = selector.select([...index.metas.values()], {
       prompt: trimmedPrompt || input.goal!.trim(),
@@ -218,7 +237,10 @@ export function beginTask(
     if (err) throw new SkillPilotError('VALIDATION_ERROR', err);
   }
 
-  const episode = loadSkillEpisode(skillRoot, skillId, config);
+  const episode = loadSkillEpisode(skillRoot, skillId, config, undefined, {
+    inject_mode: input.inject_mode,
+    token_budget: input.token_budget ?? config.defaultTokenBudget,
+  });
   const summary = buildSessionSummary(episode.title, selectExtras.rationale);
 
   const sessionPayload: SkillSessionWrite = {

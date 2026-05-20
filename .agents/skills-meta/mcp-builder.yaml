@@ -1,0 +1,14 @@
+tags:
+  - mcp
+  - server
+  - python
+  - api
+  - tools
+  - model-context-protocol
+triggers:
+  - build an mcp server
+  - create an mcp server
+  - mcp server development
+  - model context protocol server
+inject_mode_default: compact
+inject_brief: "Follow MCP builder phases: research, schema design, implementation, evaluation harness."

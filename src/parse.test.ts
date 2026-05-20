@@ -36,6 +36,17 @@ describe('parseSkillMarkdown', () => {
     assert.throws(() => parseSkillMarkdown('# no yaml\n', 'test-skill'), /front matter/);
   });
 
+  it('estimates token_estimate from body when omitted in front matter', () => {
+    const longBody = 'word '.repeat(500);
+    const eco = `---
+name: test-skill
+description: Short one-liner.
+---
+${longBody}`;
+    const { meta } = parseSkillMarkdown(eco, 'test-skill');
+    assert.ok((meta.token_estimate ?? 0) > 100);
+  });
+
   it('derives triggers from quoted description phrases', () => {
     const eco = `---
 name: find-skills

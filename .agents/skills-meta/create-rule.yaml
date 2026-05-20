@@ -1,0 +1,14 @@
+tags:
+  - cursor
+  - rules
+  - standards
+  - guardrails
+  - code-quality
+triggers:
+  - write a cursor rule
+  - create a rule
+  - add a coding standard
+  - set up a project convention
+  - cursor rule for
+inject_mode_default: compact
+inject_brief: "Author Cursor rules (.mdc) with clear scope, globs, and actionable guidance."

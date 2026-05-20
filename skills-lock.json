@@ -42,6 +42,11 @@
       "sourceType": "github",
       "skillPath": "skills/typescript-mcp-server-generator/SKILL.md",
       "computedHash": "d7add3c0bf0b16006283fcb77748eb7025d574c5e2d15306d767fb901d47ad37"
+    },
+    "com-skillpilot-orchestrator": {
+      "source": "skillpilot",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/com-skillpilot-orchestrator/SKILL.md"
     }
   }
 }

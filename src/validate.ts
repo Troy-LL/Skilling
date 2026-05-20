@@ -104,6 +104,39 @@ export function validateTtlSeconds(ttl_seconds: unknown): number | undefined {
   return ttl_seconds;
 }
 
+const INJECT_MODES = new Set(['full', 'summary', 'compact', 'sections']);
+
+export function validateInjectMode(mode: unknown): 'full' | 'summary' | 'compact' | 'sections' | undefined {
+  if (mode === undefined || mode === null) return undefined;
+  if (typeof mode !== 'string' || !INJECT_MODES.has(mode)) {
+    throw new Error('inject_mode_default must be one of: full, summary, compact, sections');
+  }
+  return mode as 'full' | 'summary' | 'compact' | 'sections';
+}
+
+export function validateInjectSections(sections: unknown): string[] | undefined {
+  if (sections === undefined || sections === null) return undefined;
+  if (!Array.isArray(sections)) throw new Error('inject_sections must be an array of strings');
+  if (sections.length > 12) throw new Error('inject_sections: max 12 entries');
+  const out: string[] = [];
+  for (const s of sections) {
+    if (typeof s !== 'string' || s.length < 2 || s.length > 80) {
+      throw new Error('inject_sections: each entry must be a string of length 2–80');
+    }
+    out.push(s.trim());
+  }
+  return out;
+}
+
+export function validateInjectBrief(brief: unknown): string | undefined {
+  if (brief === undefined || brief === null) return undefined;
+  if (typeof brief !== 'string' || brief.length < 1 || brief.length > 1200) {
+    throw new Error('inject_brief must be a string of length 1–1200');
+  }
+  if (brief.includes('\r')) throw new Error('inject_brief must use \\n line endings only');
+  return brief;
+}
+
 export function validateMinConfidence(min_confidence: unknown): number | undefined {
   if (min_confidence === undefined || min_confidence === null) return undefined;
   if (typeof min_confidence !== 'number' || min_confidence < 0 || min_confidence > 1) {

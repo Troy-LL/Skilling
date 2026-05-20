@@ -5,24 +5,30 @@ import {
   DEFAULT_TTL_MS,
   MAX_INJECT_BYTES,
 } from './constants.js';
+import type { InjectMode } from './shape-body.js';
+import { resolveSkillsMetaDir } from './skill-meta-overlay.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export type SkillPilotConfig = {
   skillsRoot: string;
+  skillsMetaDir: string;
   selector: 'heuristic' | 'embedding' | 'llm';
   maxInjectBytes: number;
   defaultTokenBudget: number;
   ttlSeconds: number;
   logLevel: LogLevel;
   logPrompts: boolean;
+  defaultInjectMode: InjectMode;
 };
 
 type FileConfig = Partial<{
   skillsRoot: string;
+  skillsMetaDir: string;
   selector: string;
   maxInjectBytes: number;
   defaultTokenBudget: number;
+  defaultInjectMode: string;
   ttlSeconds: number;
   log: { level?: string; format?: string };
 }>;
@@ -57,6 +63,11 @@ export function loadConfig(cwd: string, cliSkillRoot?: string): SkillPilotConfig
   const skillsRoot = path.resolve(
     cliSkillRoot || envRoot || file.skillsRoot || path.join(cwd, '.agents', 'skills'),
   );
+  const skillsMetaDir = path.resolve(
+    process.env['SKILLPILOT_SKILLS_META_DIR']?.trim() ||
+      file.skillsMetaDir ||
+      resolveSkillsMetaDir(skillsRoot),
+  );
 
   const selectorRaw = process.env['SKILLPILOT_SELECTOR']?.trim() || file.selector || 'heuristic';
   const selector =
@@ -74,8 +85,19 @@ export function loadConfig(cwd: string, cliSkillRoot?: string): SkillPilotConfig
     process.env['SKILLPILOT_TTL_SECONDS'] ?? file.ttlSeconds ?? DEFAULT_TTL_MS / 1000,
   );
 
+  const injectModeRaw =
+    process.env['SKILLPILOT_DEFAULT_INJECT_MODE']?.trim() || file.defaultInjectMode || 'full';
+  const defaultInjectMode: InjectMode =
+    injectModeRaw === 'summary' ||
+    injectModeRaw === 'compact' ||
+    injectModeRaw === 'sections' ||
+    injectModeRaw === 'full'
+      ? injectModeRaw
+      : 'full';
+
   return {
     skillsRoot,
+    skillsMetaDir,
     selector,
     maxInjectBytes: Number.isFinite(maxInjectBytes) ? maxInjectBytes : MAX_INJECT_BYTES,
     defaultTokenBudget: Number.isFinite(defaultTokenBudget)
@@ -84,5 +106,6 @@ export function loadConfig(cwd: string, cliSkillRoot?: string): SkillPilotConfig
     ttlSeconds: Number.isFinite(ttlSeconds) ? ttlSeconds : DEFAULT_TTL_MS / 1000,
     logLevel: parseLogLevel(process.env['SKILLPILOT_LOG_LEVEL'] ?? file.log?.level),
     logPrompts: process.env['SKILLPILOT_LOG_PROMPTS'] === 'true',
+    defaultInjectMode,
   };
 }

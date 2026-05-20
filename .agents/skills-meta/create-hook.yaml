@@ -1,0 +1,18 @@
+tags:
+  - hooks
+  - git
+  - automation
+  - pre-commit
+triggers:
+  - create a git hook
+  - add a pre-commit hook
+  - set up a hook
+  - husky hook
+  - pre-push hook
+inject_mode_default: compact
+inject_sections:
+  - Your Task
+  - Your Workflow
+  - Procedure
+min_confidence: 0.4
+inject_brief: "Git hooks only (not Cursor MCP hooks). Analyze repo, suggest hooks, implement and test."

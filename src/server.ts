@@ -73,7 +73,7 @@ async function runSelect(
       `prompt and goal must each be at most ${MAX_SELECT_INPUT_CHARS} characters.`,
     );
   }
-  const index = getSkillIndex(rootDisplay);
+  const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
   if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
   const selector = getSelector(config);
   const result = selector.select([...index.metas.values()], {
@@ -91,9 +91,10 @@ async function runSelect(
 
 async function runList(
   rootDisplay: string,
+  config: SkillPilotConfig,
   tags?: string[],
 ): Promise<ToolResult> {
-  const index = getSkillIndex(rootDisplay);
+  const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
   if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
   let skills = index.skills;
   if (tags?.length) {
@@ -109,15 +110,17 @@ async function runLoad(
   config: SkillPilotConfig,
   skill_id: string,
   correlation_id?: string,
+  inject_mode?: 'full' | 'summary' | 'compact' | 'sections',
+  token_budget?: number,
 ): Promise<ToolResult> {
   const err = validateSkillIdForLoad(skill_id);
   if (err) return toolError('VALIDATION_ERROR', err);
   try {
     return toolOk(
-      loadSkillEpisode(rootDisplay, skill_id, config, correlation_id) as unknown as Record<
-        string,
-        unknown
-      >,
+      loadSkillEpisode(rootDisplay, skill_id, config, correlation_id, {
+        inject_mode,
+        token_budget,
+      }) as unknown as Record<string, unknown>,
     );
   } catch (e) {
     return handleError('skill_inject', e);
@@ -134,7 +137,8 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
     title: 'SkillPilot',
   });
 
-  const listHandler = async (input?: { tags?: string[] }) => runList(rootDisplay, input?.tags);
+  const listHandler = async (input?: { tags?: string[] }) =>
+    runList(rootDisplay, config, input?.tags);
 
   mcp.registerTool(
     'list',
@@ -232,7 +236,7 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
     },
     async ({ goal, context, max_skills }) => {
       try {
-        const index = getSkillIndex(rootDisplay);
+        const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
         if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
         const plan = planFromCandidates([...index.metas.values()], {
           goal: goal.trim(),
@@ -247,13 +251,19 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
     },
   );
 
+  const injectModeSchema = z.enum(['full', 'summary', 'compact', 'sections']);
+
   const loadHandler = async ({
     skill_id,
     correlation_id,
+    inject_mode,
+    token_budget,
   }: {
     skill_id: string;
     correlation_id?: string;
-  }) => runLoad(rootDisplay, config, skill_id, correlation_id);
+    inject_mode?: z.infer<typeof injectModeSchema>;
+    token_budget?: number;
+  }) => runLoad(rootDisplay, config, skill_id, correlation_id, inject_mode, token_budget);
 
   mcp.registerTool(
     'load',
@@ -263,6 +273,14 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
       inputSchema: {
         skill_id: z.string(),
         correlation_id: z.string().optional(),
+        inject_mode: injectModeSchema
+          .optional()
+          .describe('full | summary (~Tier1) | compact (no code blocks) | sections (headings only)'),
+        token_budget: z
+          .number()
+          .int()
+          .optional()
+          .describe('Hints inject depth when inject_mode omitted (<350→summary, <900→compact)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -281,6 +299,8 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
       inputSchema: {
         skill_id: z.string(),
         correlation_id: z.string().optional(),
+        inject_mode: injectModeSchema.optional(),
+        token_budget: z.number().int().optional(),
       },
       annotations: {
         readOnlyHint: true,
@@ -343,9 +363,14 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
       },
     },
     async () => {
-      const index = getSkillIndex(rootDisplay);
+      const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
       if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
-      return toolOk({ ok: true, skill_count: index.skills.length, skills_root: rootDisplay });
+      return toolOk({
+        ok: true,
+        skill_count: index.skills.length,
+        skills_root: rootDisplay,
+        skills_meta_dir: config.skillsMetaDir,
+      });
     },
   );
 
@@ -388,6 +413,7 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
         skill_id: z.string().optional(),
         phase: z.string().optional(),
         token_budget: z.number().int().optional(),
+        inject_mode: injectModeSchema.optional(),
         end_previous: z.boolean().optional(),
         response_detail: z.enum(['summary', 'full']).optional(),
       },

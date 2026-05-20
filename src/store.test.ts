@@ -6,16 +6,13 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildIndex, loadSkillBody } from './store.js';
 
-const agentsSkills = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '.agents',
-  'skills',
-);
+const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const agentsSkills = path.join(repoRoot, '.agents', 'skills');
+const agentsMeta = path.join(repoRoot, '.agents', 'skills-meta');
 
 describe('buildIndex', () => {
   it('indexes catalog skills in repo', () => {
-    const index = buildIndex(agentsSkills);
+    const index = buildIndex(agentsSkills, agentsMeta);
     assert.equal(index.ok, true);
     if (!index.ok) return;
     assert.ok(index.skills.length >= 2);
@@ -49,7 +46,7 @@ body
 
 describe('loadSkillBody', () => {
   it('loads a known skill', () => {
-    const { meta, body } = loadSkillBody(agentsSkills, 'com-skillpilot-orchestrator');
+    const { meta, body } = loadSkillBody(agentsSkills, 'com-skillpilot-orchestrator', agentsMeta);
     assert.equal(meta.id, 'com-skillpilot-orchestrator');
     assert.match(body, /begin_task/);
   });

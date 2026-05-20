@@ -14,8 +14,9 @@ find-skills  →  npx skills add (repo root, no -g)  →  .agents/skills/<id>/
 |------|------|------------------|
 | 1. Discover | Agent follows **find-skills**; `npx skills find <query>` or [skills.sh](https://skills.sh/) | — |
 | 2. Install **locally** | `npm run skills:add -- <pkg>` or `npx skills add <pkg> -y` **from repo root** (no `-g`) | `<repo>/.agents/skills/<id>/` |
-| 3. Route | MCP with `SKILL_ROOT` pointing at `.agents/skills` | Same path as MCP |
-| 4. Optional ingest | `npm run skills:import -- <id>` or MCP **`ingest`** | Copies to `<repo>/skills/` (legacy / smoke only) |
+| 3. Overlay (SkillPilot) | Add or edit **`.agents/skills-meta/<id>.yaml`** | Tags, triggers, `inject_mode_default` — survives skill updates |
+| 4. Route | MCP with `SKILL_ROOT` pointing at `.agents/skills` | Reads skills + merges overlays |
+| 5. Optional ingest | `npm run skills:import -- <id>` or MCP **`ingest`** | Copies to `<repo>/skills/` (legacy / smoke only) |
 
 ## Commands (SkillPilot repo root)
 
@@ -51,10 +52,21 @@ See **`docs/mcp-config.example.json`**.
 | **find-skills** | Discover and install ecosystem skills |
 | **com-skillpilot-orchestrator** | `begin_task` / `end_task` / `skill_plan` workflow |
 | **mcp-builder**, **skill-creator**, **typescript-mcp-server-generator** | MCP and skill authoring |
-| **create-hook**, **create-rule** | Cursor hooks and rules |
+| **create-hook**, **create-rule** | Git hooks (create-hook) and Cursor rules (create-rule); use **com-skillpilot-orchestrator** for Cursor MCP lifecycle hooks |
 
 ## Notes
 
+- **`.agents/skills-meta/`** holds SkillPilot routing metadata for ecosystem skills; commit these files in the repo.
+- **`com-skillpilot-orchestrator`** is first-party (local entry in `skills-lock.json`); not managed by `npx skills update`.
 - Ecosystem front matter (`name` / `description`) is normalized to **`id`**, **`title`**, **`summary`**; quoted phrases in `description` may become **`triggers`** when omitted.
+- **`token_estimate`** is computed from the skill **body** when not set explicitly.
 - Folder name **must** match YAML **`id`**.
 - Do not use **`npx skills add -g`** when curating this project unless you also copy into `.agents/skills` here.
+
+## Regression
+
+```powershell
+npm run benchmark
+```
+
+Section **2b** asserts each scenario matches `expected_skill_id` (selection regression gate).

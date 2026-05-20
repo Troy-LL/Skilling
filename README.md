@@ -4,7 +4,7 @@ SkillPilot is a **stdio MCP server** that routes filesystem-backed agent skills 
 
 **Canonical skill root:** **`.agents/skills/`** (project-local `npx skills add`, no `-g`). Optional **`skills/`** is a legacy ingest target only — see **`docs/SKILLS_CATALOG.md`**.
 
-**Planning & spec:** **`skillpilot_docs/`** (ARCHITECTURE, SPEC, TOKEN_COMPRESSION, ROADMAP). **Autonomous usage:** **`docs/AUTONOMOUS_USAGE.md`** and **`.cursor/rules/skillpilot-lifecycle.mdc`**.
+**Planning & spec:** **`skillpilot_docs/`** (ARCHITECTURE, SPEC, TOKEN_COMPRESSION, ROADMAP). **Context engineering ladder:** **`docs/CONTEXT_ENGINEERING.md`**. **Autonomous usage:** **`docs/AUTONOMOUS_USAGE.md`** and **`.cursor/rules/skillpilot-lifecycle.mdc`**.
 
 ## Requirements
 

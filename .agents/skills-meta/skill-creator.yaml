@@ -1,0 +1,18 @@
+tags:
+  - skills
+  - authoring
+  - eval
+  - benchmark
+  - skill-creation
+triggers:
+  - create a skill
+  - author a skill
+  - write a new skill
+  - package a skill
+  - skill creator
+  - author and package a reusable skill
+inject_mode_default: compact
+inject_sections:
+  - Procedure
+  - Workflow
+inject_brief: "Follow skill-creator workflow: front matter, evals, packaging; keep summaries lean."

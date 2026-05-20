@@ -1,0 +1,11 @@
+triggers:
+  - begin task
+  - skillpilot
+  - end task
+  - skill plan
+  - create a cursor hook
+  - cursor hook
+  - session start
+  - beforeSubmitPrompt
+  - auto-load context
+  - skillpilot task

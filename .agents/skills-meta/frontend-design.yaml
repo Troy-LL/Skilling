@@ -1,0 +1,17 @@
+tags:
+  - react
+  - ui
+  - css
+  - design
+  - tailwind
+  - frontend
+  - components
+triggers:
+  - build a react component
+  - create a ui
+  - design a page
+  - style a web app
+  - beautiful react ui
+  - tailwind css
+inject_mode_default: compact
+inject_brief: "Design distinctive, production-grade UI; avoid generic AI aesthetics; match stack (React/Tailwind/etc.)."

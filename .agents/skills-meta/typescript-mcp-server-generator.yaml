@@ -1,0 +1,14 @@
+tags:
+  - typescript
+  - mcp
+  - node
+  - generator
+  - boilerplate
+triggers:
+  - generate a typescript mcp server
+  - typescript mcp server generator
+  - mcp server project from scratch
+  - typescript mcp server from scratch
+  - all boilerplate
+inject_mode_default: compact
+inject_brief: "Scaffold a TypeScript MCP server with SDK, zod, transport, and tool registration."

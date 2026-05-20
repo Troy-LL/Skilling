@@ -118,7 +118,24 @@ The plan is built from Tier 1 summaries only (cheap). The agent reads the plan, 
 
 ---
 
-## Strategy 7: Helpfulness-Aware Filtering (Advanced / Future)
+## Strategy 7: Inject Depth (`inject_mode`)
+
+Not every task needs the full Tier 2 body. **`inject_mode`** on `load` / `begin_task` controls how much text is shaped into context:
+
+| Mode | What is injected | Typical use |
+|------|------------------|-------------|
+| **`summary`** | `title` + `summary` / `inject_brief` only | Very tight budget; skill already familiar |
+| **`sections`** | Only headings listed in `inject_sections` (or Procedure / When to use) | Need steps, not examples |
+| **`compact`** | Body with fenced code stripped; truncates instead of error if over cap | Default for large ecosystem skills |
+| **`full`** | Full shaped body (still strips `internal-only`) | First use or debugging |
+
+When `inject_mode` is omitted, **`token_budget`** selects depth: &lt;350 → summary, &lt;900 → compact, else full (or per-skill `inject_mode_default`).
+
+See **`docs/CONTEXT_ENGINEERING.md`** for the full agent ladder.
+
+---
+
+## Strategy 8: Helpfulness-Aware Filtering (Advanced / Future)
 
 Inspired by Skill0's **Dynamic Curriculum**, a more advanced selector could track per-skill helpfulness across tasks:
 
