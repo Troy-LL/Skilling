@@ -60,14 +60,40 @@ Skills live as folders under **`.agents/skills/<skill-id>/SKILL.md`**. SkillPilo
 
 **Requirements:** Node.js 18+
 
+### Install in Cursor (one step)
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=skillpilot&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInNraWxscGlsb3QtbWNwQGxhdGVzdCJdLCJlbnYiOnsiU0tJTExfUk9PVCI6IiR7d29ya3NwYWNlRm9sZGVyfS8uYWdlbnRzL3NraWxscyJ9fQ==)
+
+Or paste this into **Cursor Settings → MCP** (or `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "skillpilot": {
+      "command": "npx",
+      "args": ["-y", "skillpilot-mcp@latest"],
+      "env": {
+        "SKILL_ROOT": "${workspaceFolder}/.agents/skills"
+      }
+    }
+  }
+}
+```
+
+No clone or build. Point `SKILL_ROOT` at your project’s `.agents/skills` (create the folder and add skills, or use `npx skills add`). Omit `SKILL_ROOT` to use the **bundled** catalog shipped inside the package.
+
+Regenerate the deeplink after config changes: `node scripts/generate-mcp-deeplink.mjs`
+
+### Develop from source
+
 ```bash
-git clone <your-fork-url>
+git clone https://github.com/Troy-LL/SkillPilot.git
 cd SkillPilot
 npm install
 npm run build
 ```
 
-Point your MCP host at the built server and set the skill root:
+Local MCP entry (repo-relative):
 
 ```json
 {
@@ -83,9 +109,13 @@ Point your MCP host at the built server and set the skill root:
 
 `run-mcp.mjs` sets `SKILL_ROOT` and `SKILLPILOT_SKILLS_META_DIR` from the repo. See [`docs/mcp-config.example.json`](docs/mcp-config.example.json).
 
+### npm publish
+
+Maintainers: `npm login` then `npm publish --access public` from this directory. See [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
+
 ### Cursor Marketplace plugin
 
-This repo includes [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) for the [Cursor Marketplace](https://cursor.com/marketplace). Local test and submission steps: [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
+This repo includes [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) for the [Cursor Marketplace](https://cursor.com/marketplace). Local test and submission: [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
 
 **Verify locally:**
 

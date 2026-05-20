@@ -1,0 +1,17 @@
+SkillPilot includes skill content from third-party open-source repositories.
+See skills-lock.json in the source repository for provenance and hashes.
+
+Bundled skills (subject to their respective licenses in each skill folder):
+
+- com-skillpilot-orchestrator — SkillPilot project (ISC)
+- find-skills — vercel-labs/skills
+- frontend-design — anthropics/skills (see LICENSE.txt in skill folder)
+- mcp-builder — anthropics/skills (see LICENSE.txt in skill folder)
+- skill-creator — anthropics/skills (see LICENSE.txt in skill folder)
+- create-hook, create-rule — neolabhq/context-engineering-kit
+- typescript-mcp-server-generator — github/awesome-copilot
+
+The npm package may omit large optional skill bodies (e.g. create-hook); install additional
+skills with `npx skills add` and add `.agents/skills-meta/<id>.yaml` overlays per docs/SKILLS_CATALOG.md.
+
+SkillPilot core (src/, dist/) is licensed under ISC — see LICENSE.

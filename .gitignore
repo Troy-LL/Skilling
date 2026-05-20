@@ -4,4 +4,5 @@ dist/
 extension/node_modules/
 extension/out/
 *.log
+*.tgz
 .DS_Store

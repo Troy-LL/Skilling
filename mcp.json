@@ -1,9 +1,11 @@
 {
   "mcpServers": {
     "skillpilot": {
-      "command": "node",
-      "args": ["scripts/run-mcp.mjs"],
-      "env": {}
+      "command": "npx",
+      "args": ["-y", "skillpilot-mcp@latest"],
+      "env": {
+        "SKILL_ROOT": "${workspaceFolder}/.agents/skills"
+      }
     }
   }
 }

@@ -42,10 +42,19 @@ function realPathBestEffort(p: string): string {
   }
 }
 
+export function skillRootSetupHint(resolvedPath: string): string {
+  return [
+    `SkillPilot: skill root not found at ${resolvedPath}`,
+    'Set SKILL_ROOT in your MCP server env (e.g. "${workspaceFolder}/.agents/skills") or pass --skill-root <path>.',
+    'npm/npx example env: SKILL_ROOT=/your/project/.agents/skills',
+    'Bundled catalog: npx -y skillpilot-mcp (uses package .agents/skills unless SKILL_ROOT is set).',
+  ].join('\n');
+}
+
 export function resolveSkillRoot(rootArg: string): string {
   const resolved = path.resolve(rootArg);
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-    throw new SkillPilotError('STORE_UNAVAILABLE', `SKILL_ROOT is not a directory: ${resolved}`);
+    throw new SkillPilotError('STORE_UNAVAILABLE', skillRootSetupHint(resolved));
   }
   return realPathBestEffort(resolved);
 }

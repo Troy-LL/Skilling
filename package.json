@@ -1,11 +1,13 @@
 {
-  "name": "skillpilot",
+  "name": "skillpilot-mcp",
   "version": "1.0.0",
   "description": "SkillPilot MCP — filesystem skill router (list / select / load / cleanup)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
     "start": "node dist/index.js",
     "mcp": "node dist/index.js",
     "test": "npm run build && node --test dist/**/*.test.js",
@@ -14,14 +16,61 @@
     "test:auto-begin-hook": "node scripts/test-auto-begin-hook.mjs",
     "skills:add": "node scripts/skills-add-local.mjs",
     "skills:import": "node scripts/import-skill.mjs",
-    "benchmark": "npm run build && node scripts/token-benchmark.mjs"
+    "benchmark": "npm run build && node scripts/token-benchmark.mjs",
+    "pack:check": "npm pack --dry-run",
+    "deeplink": "node scripts/generate-mcp-deeplink.mjs"
   },
+  "files": [
+    "dist/**",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    ".agents/skills/**",
+    "!.agents/skills/create-hook",
+    "!.agents/skills/skill-creator/scripts",
+    "!.agents/skills/skill-creator/eval-viewer",
+    "!.agents/skills/skill-creator/agents",
+    "!.agents/skills/skill-creator/assets",
+    "!.agents/skills/skill-creator/references",
+    "!.agents/skills/mcp-builder/scripts",
+    "!.agents/skills/mcp-builder/reference",
+    ".agents/skills-meta/**",
+    "scripts/run-mcp.mjs",
+    "scripts/hook-paths.mjs",
+    "hooks/**",
+    "mcp.json",
+    ".cursor-plugin/**",
+    ".cursor/rules/**",
+    ".cursor/hooks.json",
+    "assets/**",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
   "bin": {
-    "skillpilot-mcp": "dist/index.js"
+    "skillpilot-mcp": "scripts/run-mcp.mjs"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "mcp",
+    "cursor",
+    "skills",
+    "agent",
+    "routing",
+    "token-budget",
+    "model-context-protocol"
+  ],
+  "author": "SkillPilot Contributors",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Troy-LL/SkillPilot.git"
+  },
+  "homepage": "https://github.com/Troy-LL/SkillPilot#readme",
+  "bugs": {
+    "url": "https://github.com/Troy-LL/SkillPilot/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "yaml": "^2.9.0",

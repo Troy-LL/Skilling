@@ -37,8 +37,9 @@ The core router is working. The goal for this phase is **correctness and stabili
 - [x] CI via GitHub Actions
 
 ### In Progress
-- [ ] npm publish as `skillpilot-mcp`
-- [ ] Contributing guide and example skill library polish
+- [x] npm package metadata as `skillpilot-mcp` (`files`, `prepare`, `.npmignore`) — run `npm publish` after `npm login`
+- [x] Contributing guide ([CONTRIBUTING.md](../CONTRIBUTING.md))
+- [ ] Example skill library polish
 
 ### Before v1.0 (remaining)
 - [ ] README quick-start for Claude Desktop (same MCP JSON shape as Cursor)

@@ -20,6 +20,14 @@ npm run smoke
 - Keep diffs focused; match existing TypeScript and test style (`node:test`).
 - No secrets, `.env`, or local `mcp.json` paths in commits.
 
-## Marketplace / plugin
+## Publish
 
-See [docs/PUBLISHING.md](docs/PUBLISHING.md).
+```bash
+npm run pack:check   # verify tarball contents
+npm login
+npm publish --access public
+```
+
+Use **`--access`** (not `--acess`). npm will prompt for a one-time password if 2FA is enabled on your account.
+
+See [docs/PUBLISHING.md](docs/PUBLISHING.md) for Cursor Marketplace steps.

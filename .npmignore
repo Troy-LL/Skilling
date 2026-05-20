@@ -1,0 +1,35 @@
+# Source and dev-only (dist/ is included via package.json "files")
+src/
+extension/
+skillpilot_docs/
+skills/
+docs/
+.github/
+.vscode/
+.cursor/hooks/
+skill_router_architecture.svg
+v1-exceptions.md
+skill-rules.md
+skills-lock.json
+skillpilot.config.json.example
+*.tgz
+*.log
+.skillpilot/
+
+# Scripts not shipped in the npm package
+scripts/token-benchmark.mjs
+scripts/mcp-smoke.mjs
+scripts/test-*.mjs
+scripts/skills-add-local.mjs
+scripts/import-skill.mjs
+scripts/extension-*.mjs
+
+# Large optional ecosystem skill bodies (install via npx skills add; overlay YAML kept)
+.agents/skills/create-hook/SKILL.md
+.agents/skills/skill-creator/scripts/
+.agents/skills/skill-creator/eval-viewer/
+.agents/skills/skill-creator/agents/
+.agents/skills/skill-creator/assets/
+.agents/skills/skill-creator/references/
+.agents/skills/mcp-builder/scripts/
+.agents/skills/mcp-builder/reference/
