@@ -24,15 +24,27 @@ npm run pack:check
 npm publish --access public
 ```
 
-### 1.7.1 release (supersedes 1.7.0 on npm)
+### 2.0.0 release (breaking — context engine rework)
 
 Ship after merge when ready:
 
 ```bash
-npm test          # unit + setup + hooks + smoke (MCP instructions + skilling_workflow prompt)
+npm test          # unit + setup + hooks + smoke
+npm run benchmark # Section 2b selection regression
 npm run pack:check
 npm publish --access public
 ```
+
+**2.0.0** breaking changes:
+
+- `begin_task` **requires `skill_id`** — use `list` or `suggest_skills` first
+- New **`suggest_skills`** tool (heuristics only; `select` is a deprecated alias)
+- `token_budget` is **inject-only**; use `select_max_tokens` on `suggest_skills` for selection caps
+- Default inject budget **900** (discovery/plan phase → **300**)
+- `skill_plan` deprecated — returns `suggestions` + shaped token estimates (no plan steps)
+- Cursor hook auto-inject **off by default** — set `SKILLING_HOOK_AUTO_INJECT=1` for legacy behavior
+
+### 1.7.1 release (supersedes 1.7.0 on npm)
 
 **1.7.1** includes: `--write-rules` opt-in and scoped rules writes, deeplink/config without `${workspaceFolder}`, smoke coverage for server instructions + MCP prompt, Claude Code MCP detect tied to `.mcp.json`/`.claude/`, global-host repoint messaging.
 

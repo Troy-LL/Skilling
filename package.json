@@ -1,7 +1,7 @@
 {
   "name": "skilling",
-  "version": "1.7.1",
-  "description": "Skilling MCP — filesystem skill router (list / select / load / cleanup)",
+  "version": "2.0.0",
+  "description": "Skilling MCP — portable context engine (list / suggest_skills / begin_task / end_task)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
