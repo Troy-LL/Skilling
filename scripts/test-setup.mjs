@@ -54,14 +54,61 @@ async function test(name, fn) {
 
 await test('postinstall seeds find-skills into a fresh temp project root', async () => {
   const project = await mkTemp('skilling-setup-seed-');
+  const home = await mkTemp('skilling-setup-seed-home-');
   try {
     const result = await runPostinstall({
       projectRoot: project,
       pkgDir: PKG_DIR,
+      homeDir: home,
+      appData: path.join(home, 'AppData', 'Roaming'),
       env: { INIT_CWD: project },
     });
-    assert.equal(result.skipped, false);
+    assert.notEqual(result.skipped, true);
     assert.ok(fs.existsSync(path.join(project, '.agents', 'skills', 'find-skills', 'SKILL.md')));
+  } finally {
+    await rmTemp(project);
+    await rmTemp(home);
+  }
+});
+
+await test('postinstall auto-runs setup when .cursor exists', async () => {
+  const project = await mkTemp('skilling-postinstall-setup-');
+  const home = await mkTemp('skilling-postinstall-home-');
+  try {
+    await fsp.mkdir(path.join(project, '.cursor'), { recursive: true });
+    await fsp.mkdir(path.join(project, 'node_modules', 'skilling', 'scripts'), { recursive: true });
+    await fsp.writeFile(
+      path.join(project, 'node_modules', 'skilling', 'scripts', 'run-mcp.mjs'),
+      '// stub\n',
+      'utf8',
+    );
+    const result = await runPostinstall({
+      projectRoot: project,
+      pkgDir: PKG_DIR,
+      homeDir: home,
+      appData: path.join(home, 'AppData', 'Roaming'),
+      env: { INIT_CWD: project },
+    });
+    assert.notEqual(result.skipped, true);
+    assert.ok(fs.existsSync(path.join(project, '.cursor', 'mcp.json')));
+    assert.ok(result.wrote || result.results?.some((r) => r.status === 'ok'));
+  } finally {
+    await rmTemp(project);
+    await rmTemp(home);
+  }
+});
+
+await test('postinstall respects SKILLING_SKIP_AUTO_SETUP', async () => {
+  const project = await mkTemp('skilling-postinstall-skip-setup-');
+  try {
+    await fsp.mkdir(path.join(project, '.cursor'), { recursive: true });
+    const result = await runPostinstall({
+      projectRoot: project,
+      pkgDir: PKG_DIR,
+      env: { INIT_CWD: project, SKILLING_SKIP_AUTO_SETUP: '1' },
+    });
+    assert.equal(result.setupSkipped, true);
+    assert.equal(fs.existsSync(path.join(project, '.cursor', 'mcp.json')), false);
   } finally {
     await rmTemp(project);
   }

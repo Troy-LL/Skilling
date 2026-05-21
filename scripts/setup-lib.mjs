@@ -31,6 +31,10 @@ export function resolveProjectRoot(startDir = process.env.INIT_CWD?.trim() || pr
   return path.resolve(startDir);
 }
 
+export function shouldSkipAutoSetup(env = process.env) {
+  return Boolean(env.SKILLING_SKIP_AUTO_SETUP?.trim());
+}
+
 export function shouldSkipPostinstall(env = process.env, pkgDir = PKG_DIR) {
   if (env.CI) return true;
   if (env.npm_config_global === 'true') return true;
@@ -362,7 +366,7 @@ export function parseSetupArgs(argv) {
 
 /**
  * @param {string[]} argv
- * @param {{ projectRoot?: string, homeDir?: string, pkgDir?: string, execPath?: string, env?: NodeJS.ProcessEnv }} [overrides]
+ * @param {{ projectRoot?: string, homeDir?: string, pkgDir?: string, execPath?: string, appData?: string, quiet?: boolean, fromPostinstall?: boolean }} [overrides]
  */
 export async function runSetup(argv = [], overrides = {}) {
   const flags = parseSetupArgs(argv);
@@ -371,6 +375,7 @@ export async function runSetup(argv = [], overrides = {}) {
     return { ok: true, help: true };
   }
 
+  const quiet = overrides.quiet ?? false;
   const projectRoot = path.resolve(overrides.projectRoot ?? resolveProjectRoot());
   const homeDir = overrides.homeDir ?? os.homedir();
   const pkgDir = resolvePkgDir(overrides.pkgDir);
@@ -442,8 +447,25 @@ export async function runSetup(argv = [], overrides = {}) {
   lines.push('');
   lines.push('  Restart your IDE to load the MCP server.');
 
-  process.stdout.write(`${lines.join('\n')}\n`);
-  return { ok: true, results, launch, projectRoot, skillCount };
+  const wrote = results.some((r) => r.status === 'ok');
+  const hadSkip = results.some((r) => r.status === 'skipped');
+  const hadError = results.some((r) => r.status === 'error');
+
+  if (quiet && !wrote && !hadError) {
+    if (hadSkip) {
+      process.stdout.write(
+        'Skilling: find-skills ready; MCP configs already present. Run "npx skilling setup --force" to refresh.\n',
+      );
+    } else {
+      process.stdout.write(
+        'Skilling: find-skills ready in .agents/skills/. Run "npx skilling setup" after adding .cursor/ or .vscode/.\n',
+      );
+    }
+  } else {
+    process.stdout.write(`${lines.join('\n')}\n`);
+  }
+
+  return { ok: !hadError, results, launch, projectRoot, skillCount, wrote, hadSkip, hadError };
 }
 
 export async function runPostinstall(overrides = {}) {
@@ -458,9 +480,19 @@ export async function runPostinstall(overrides = {}) {
     overrides.projectRoot ?? resolveProjectRoot(env.INIT_CWD?.trim() || process.cwd()),
   );
 
-  const { seeded } = await seedFindSkills(projectRoot, pkgDir);
-  process.stdout.write(
-    `Skilling: ${seeded ? 'seeded' : 'found'} find-skills → .agents/skills/  run "npx skilling setup" to configure your IDE\n`,
-  );
-  return { skipped: false, seeded, projectRoot };
+  if (shouldSkipAutoSetup(env)) {
+    const { seeded } = await seedFindSkills(projectRoot, pkgDir);
+    process.stdout.write(
+      `Skilling: ${seeded ? 'seeded' : 'found'} find-skills → .agents/skills/  run "npx skilling setup" to configure your IDE\n`,
+    );
+    return { skipped: false, seeded, projectRoot, setupSkipped: true };
+  }
+
+  return runSetup([], {
+    ...overrides,
+    projectRoot,
+    pkgDir,
+    quiet: overrides.quiet ?? true,
+    fromPostinstall: true,
+  });
 }

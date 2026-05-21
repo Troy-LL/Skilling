@@ -10,6 +10,28 @@ Skilling is an open-source MCP server that routes agent skills from your filesys
 
 **npm:** [`skilling`](https://www.npmjs.com/package/skilling)
 
+### Zero-config (recommended)
+
+From your project root:
+
+```bash
+npm install skilling
+```
+
+**Postinstall runs automatically:** seeds **`find-skills`** into `.agents/skills/` and runs **`skilling setup`** (writes MCP configs for detected IDEs with absolute paths). Re-installs are safe — existing `skilling` MCP entries are skipped unless you pass `--force`.
+
+Then **restart your IDE** so it loads the MCP server.
+
+Manual re-run or refresh after moving the project / upgrading Node:
+
+```bash
+npx skilling setup --force
+```
+
+Opt out: `SKILLING_SKIP_AUTO_SETUP=1` (seed only) or `SKILLING_SKIP_POSTINSTALL=1` (skip all postinstall steps). See [`docs/HOST_MCP_SETUP.md`](docs/HOST_MCP_SETUP.md).
+
+### Manual MCP JSON (advanced)
+
 Add this to **Cursor Settings → MCP** or your project’s `.cursor/mcp.json`:
 
 ```json
@@ -32,13 +54,7 @@ One-line MCP command (what `npx` runs):
 npx -y skilling@latest
 ```
 
-Install the package into a project (optional — MCP config above uses `npx` and needs no local install):
-
-```bash
-npm install skilling
-```
-
-Point `SKILL_ROOT` at your project’s `.agents/skills` folder. Omit it to use the **bundled** catalog shipped inside the package. Create `.agents/skills` and add skills with `npx skills add`, or use the bundled catalog as-is.
+The MCP JSON block above is optional if you use **`npm install skilling`** (postinstall + setup). For `npx`-only installs without a local dependency, point `SKILL_ROOT` at `.agents/skills` or omit it and use the bundled catalog.
 
 ### Install in Cursor
 
@@ -129,7 +145,7 @@ Local MCP entry (repo-relative):
 }
 ```
 
-`run-mcp.mjs` sets `SKILL_ROOT` and `SKILLING_SKILLS_META_DIR` from the repo. See [`docs/mcp-config.example.json`](docs/mcp-config.example.json).
+`run-mcp.mjs` discovers `.agents/skills` at runtime. See [`docs/mcp-config.example.json`](docs/mcp-config.example.json) and [`docs/HOST_MCP_SETUP.md`](docs/HOST_MCP_SETUP.md).
 
 ### npm publish
 

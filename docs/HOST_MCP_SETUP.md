@@ -8,18 +8,25 @@ From your **project root** (where you want `.agents/skills/`):
 
 ```bash
 npm install skilling
-npx skilling setup
 ```
 
-Then **restart your IDE** so it loads the MCP server.
+**Postinstall** seeds **`find-skills`** and runs **`skilling setup`** automatically (idempotent — skips hosts already configured). Then **restart your IDE**.
 
-What happens:
+Manual re-run or refresh:
 
-1. **`npm install`** — postinstall seeds **`find-skills`** into `.agents/skills/` (non-destructive; skipped in CI and when installing globally).
-2. **`npx skilling setup`** — detects IDE markers, writes MCP configs with **absolute** `command` / `args`, merges without clobbering other servers.
+```bash
+npx skilling setup --force
+```
+
+What happens on `npm install`:
+
+1. **Seed** — copies **`find-skills`** into `.agents/skills/` if missing (non-destructive).
+2. **Setup** — detects IDE markers, writes MCP configs with **absolute** `command` / `args`, merges without clobbering other servers. Skips when `skilling` entry already exists.
 3. **Restart IDE** — MCP servers load at startup on most hosts.
 
-No prompts. No confirmations. One summary printed to the terminal.
+Opt out: `SKILLING_SKIP_AUTO_SETUP=1` (seed only) · `SKILLING_SKIP_POSTINSTALL=1` (skip all postinstall). Skipped in CI and global installs.
+
+No prompts. No confirmations.
 
 ### Setup flags
 

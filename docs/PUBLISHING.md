@@ -2,7 +2,9 @@
 
 ## npm (`skilling`)
 
-Package name: **`skilling`**. Binary: **`skilling`** → `scripts/run-mcp.mjs` (sets bundled `SKILL_ROOT` unless overridden).
+Package name: **`skilling`**. Binary: **`skilling`** → `scripts/run-mcp.mjs`. **`npm install skilling`** runs postinstall (seed + auto setup); **`npx skilling setup`** for manual refresh.
+
+Publish auth: use a **granular access token** with publish permission and **bypass 2FA for automation** (or a classic **Automation** token) if your npm account has 2FA enabled.
 
 The legacy package [`skillpilot-mcp`](https://www.npmjs.com/package/skillpilot-mcp) can be deprecated after `skilling` is live; point users at `npx -y skilling@latest`.
 
