@@ -13,7 +13,7 @@ import {
   SKILLING_RULES_HEADER,
   buildMcpLaunchEntry,
   buildServerConfigEntry,
-  canWriteRulesFile,
+  claudeDesktopConfigPath,
   formatEntry,
   hasSkillingEntry,
   mergeHostConfig,
@@ -411,11 +411,167 @@ await test('setup --write-rules appends to existing Claude rules instead of over
   }
 });
 
-await test('canWriteRulesFile requires --write-rules flag', async () => {
-  const rulesPath = '/tmp/skilling-can-write/copilot-instructions.md';
-  assert.equal(canWriteRulesFile(rulesPath, false), false);
-  assert.equal(canWriteRulesFile(rulesPath, true), true);
-  assert.equal(canWriteRulesFile('', true), false);
+await test('setup --write-rules skips VS Code when copilot-instructions.md absent', async () => {
+  const project = await mkTemp('skilling-vscode-no-copilot-');
+  try {
+    await fsp.mkdir(path.join(project, '.vscode'), { recursive: true });
+    const host = hostById('vscode');
+    const ctx = { projectRoot: project, homeDir: project, appData: project };
+    const outcome = await writeHostRules(host, ctx, { writeRules: true });
+    assert.equal(outcome, 'skipped-no-target');
+    assert.equal(fs.existsSync(path.join(project, '.github', 'copilot-instructions.md')), false);
+  } finally {
+    await rmTemp(project);
+  }
+});
+
+await test('setup --write-rules skips Claude when .claude/ absent', async () => {
+  const project = await mkTemp('skilling-claude-no-dir-');
+  try {
+    await fsp.writeFile(path.join(project, 'package.json'), '{}\n', 'utf8');
+    const host = hostById('claude-code');
+    const ctx = { projectRoot: project, homeDir: project, appData: project };
+    const outcome = await writeHostRules(host, ctx, { writeRules: true });
+    assert.equal(outcome, 'skipped-no-target');
+  } finally {
+    await rmTemp(project);
+  }
+});
+
+await test('setup --write-rules creates Claude rules when .claude/ exists', async () => {
+  const project = await mkTemp('skilling-claude-create-');
+  try {
+    await fsp.mkdir(path.join(project, '.claude'), { recursive: true });
+    const host = hostById('claude-code');
+    const ctx = { projectRoot: project, homeDir: project, appData: project };
+    const outcome = await writeHostRules(host, ctx, { writeRules: true });
+    assert.equal(outcome, 'written');
+    const rulesPath = path.join(project, '.claude', 'rules', 'skilling-lifecycle.md');
+    assert.ok(fs.existsSync(rulesPath));
+    const content = await fsp.readFile(rulesPath, 'utf8');
+    assert.match(content, /Skilling MCP/);
+  } finally {
+    await rmTemp(project);
+  }
+});
+
+await test('writeHostRules requires --write-rules flag', async () => {
+  const project = await mkTemp('skilling-write-rules-flag-');
+  try {
+    await fsp.mkdir(path.join(project, '.vscode'), { recursive: true });
+    await fsp.mkdir(path.join(project, '.github'), { recursive: true });
+    const rulesPath = path.join(project, '.github', 'copilot-instructions.md');
+    await fsp.writeFile(rulesPath, '# Team instructions\n', 'utf8');
+
+    const host = hostById('vscode');
+    const ctx = { projectRoot: project, homeDir: project, appData: project };
+    assert.equal(await writeHostRules(host, ctx, { writeRules: false }), 'skipped');
+
+    const before = await fsp.readFile(rulesPath, 'utf8');
+    assert.equal(await writeHostRules(host, ctx, { writeRules: true }), 'written');
+    const after = await fsp.readFile(rulesPath, 'utf8');
+    assert.notEqual(before, after);
+  } finally {
+    await rmTemp(project);
+  }
+});
+
+await test('claude-code MCP not configured for plain package.json project', async () => {
+  const project = await mkTemp('skilling-claude-no-detect-');
+  try {
+    await fsp.writeFile(path.join(project, 'package.json'), '{}\n', 'utf8');
+    const host = hostById('claude-code');
+    const ctx = { projectRoot: project, homeDir: project, appData: project };
+    assert.equal(host.detect(ctx), false);
+    assert.equal(fs.existsSync(path.join(project, '.mcp.json')), false);
+  } finally {
+    await rmTemp(project);
+  }
+});
+
+await test('claude-code MCP configured when .claude/ exists', async () => {
+  const project = await mkTemp('skilling-claude-detect-');
+  const home = await mkTemp('skilling-claude-detect-home-');
+  try {
+    await fsp.mkdir(path.join(project, '.claude'), { recursive: true });
+    await fsp.mkdir(path.join(project, 'node_modules', 'skilling', 'scripts'), { recursive: true });
+    await fsp.writeFile(
+      path.join(project, 'node_modules', 'skilling', 'scripts', 'run-mcp.mjs'),
+      '// stub\n',
+      'utf8',
+    );
+    await runSetup(['--force'], {
+      projectRoot: project,
+      homeDir: home,
+      appData: path.join(home, 'AppData', 'Roaming'),
+      pkgDir: PKG_DIR,
+    });
+    assert.ok(fs.existsSync(path.join(project, '.mcp.json')));
+  } finally {
+    await rmTemp(project);
+    await rmTemp(home);
+  }
+});
+
+await test('setup skips global host with repoint hint when already configured', async () => {
+  const project = await mkTemp('skilling-global-skip-');
+  const home = await mkTemp('skilling-global-skip-home-');
+  try {
+    await fsp.writeFile(path.join(project, 'package.json'), '{}\n', 'utf8');
+    await fsp.mkdir(path.join(project, 'node_modules', 'skilling', 'scripts'), { recursive: true });
+    await fsp.writeFile(
+      path.join(project, 'node_modules', 'skilling', 'scripts', 'run-mcp.mjs'),
+      '// stub\n',
+      'utf8',
+    );
+
+    const appData = path.join(home, 'AppData', 'Roaming');
+    const claudePath = claudeDesktopConfigPath(home, appData);
+    await fsp.mkdir(path.dirname(claudePath), { recursive: true });
+    await fsp.writeFile(
+      claudePath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            skilling: {
+              command: 'old-node',
+              args: ['stale'],
+              env: { SKILL_ROOT: '/old/path/.agents/skills' },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    let output = '';
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk) => {
+      output += String(chunk);
+      return true;
+    };
+    try {
+      const result = await runSetup([], {
+        projectRoot: project,
+        homeDir: home,
+        appData,
+        pkgDir: PKG_DIR,
+      });
+      const claude = result.results.find((r) => r.host.id === 'claude-desktop');
+      assert.equal(claude?.status, 'skipped');
+    } finally {
+      process.stdout.write = origWrite;
+    }
+
+    assert.match(output, /existing global entry unchanged \(use --force to repoint SKILL_ROOT\)/);
+    const cfg = JSON.parse(await fsp.readFile(claudePath, 'utf8'));
+    assert.equal(cfg.mcpServers.skilling.env.SKILL_ROOT, '/old/path/.agents/skills');
+  } finally {
+    await rmTemp(project);
+    await rmTemp(home);
+  }
 });
 
 await test('windsurf rules only run for project with .windsurf marker', async () => {

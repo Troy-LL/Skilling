@@ -45,6 +45,28 @@ const client = new Client({ name: 'Skilling-smoke', version: '0.0.0' });
 try {
   await client.connect(transport);
 
+  const instructions = client.getInstructions();
+  if (!instructions || !instructions.includes('begin_task')) {
+    fail('server instructions', instructions ?? 'missing');
+  }
+  report('server instructions');
+
+  const promptList = await client.listPrompts();
+  const promptNames = promptList.prompts?.map((p) => p.name) ?? [];
+  if (!promptNames.includes('skilling_workflow')) {
+    fail('listPrompts', promptNames);
+  }
+  report('listPrompts', { count: promptNames.length });
+
+  const promptRes = await client.getPrompt({ name: 'skilling_workflow', arguments: {} });
+  const promptText = promptRes.messages?.[0]?.content;
+  const promptBody =
+    promptText && typeof promptText === 'object' && 'text' in promptText ? promptText.text : '';
+  if (!promptBody.includes('begin_task') || !promptBody.includes('end_task')) {
+    fail('getPrompt(skilling_workflow)', promptBody.slice(0, 120));
+  }
+  report('getPrompt(skilling_workflow)');
+
   const listRes = await client.callTool({ name: 'list', arguments: {} });
   if (listRes.isError) fail('list', listRes.content);
   const skills = listRes.structuredContent?.skills ?? [];

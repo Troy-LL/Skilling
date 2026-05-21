@@ -22,6 +22,14 @@ npm install skilling
 
 Then **restart your IDE** so it loads the MCP server.
 
+### After install (by IDE)
+
+| Audience | Extra step (optional) |
+|----------|------------------------|
+| **VS Code Copilot** | If `.github/copilot-instructions.md` exists: `npx skilling setup --write-rules` |
+| **Claude Code** | MCP auto-config runs when `.mcp.json` or `.claude/` exists in the project |
+| **Claude Desktop / Windsurf / Zed** | `SKILL_ROOT` is baked to the project you ran setup from; use `npx skilling setup --force` when switching projects |
+
 Manual re-run or refresh after moving the project / upgrading Node:
 
 ```bash
@@ -75,7 +83,7 @@ See [`docs/HOST_MCP_SETUP.md`](docs/HOST_MCP_SETUP.md) for the full host compati
 
 **MCP server only** (stdio router via `npx`, no plugin bundle) — one-click deeplink:
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=skilling&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInNraWxsaW5nQGxhdGVzdCJdLCJlbnYiOnsiU0tJTExfUk9PVCI6IiR7d29ya3NwYWNlRm9sZGVyfS8uYWdlbnRzL3NraWxscyJ9fQ==)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=skilling&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInNraWxsaW5nQGxhdGVzdCJdfQ==)
 
 Regenerate the MCP deeplink after config changes: `npm run deeplink`
 
@@ -236,7 +244,7 @@ MCP protocol traffic uses **stdout** only; logs go to **stderr** as structured J
 |---------|-------------|
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run the MCP server (stdio) |
-| `npm test` | Unit tests |
+| `npm test` | Unit tests, setup scripts, hooks, and MCP smoke |
 | `npm run smoke` | End-to-end MCP lifecycle check |
 | `npm run benchmark` | Token savings + selection regression |
 | `npm run skills:add -- <pkg>` | Install a skill into `.agents/skills` |

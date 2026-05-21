@@ -2,13 +2,12 @@
 /**
  * Print a Cursor MCP install deeplink for the published npx config.
  * Usage: node scripts/generate-mcp-deeplink.mjs
+ *
+ * Omits SKILL_ROOT — the server discovers .agents/skills from cwd at runtime.
  */
 const config = {
   command: 'npx',
   args: ['-y', 'skilling@latest'],
-  env: {
-    SKILL_ROOT: '${workspaceFolder}/.agents/skills',
-  },
 };
 
 const encoded = Buffer.from(JSON.stringify(config), 'utf8').toString('base64');

@@ -3,15 +3,15 @@
 ## Automated
 
 ```bash
-npm test           # build + node:test unit tests
-npm run smoke      # stdio MCP lifecycle + compact inject (see below)
-npm run test:setup # postinstall + setup script validation
+npm test           # build + unit tests + setup + hooks + smoke (full MCP lifecycle)
+npm run smoke      # stdio MCP lifecycle only (also run via npm test)
 ```
 
 CI runs `npm ci`, `npm test`, and `npm run smoke` on pull requests.
 
 **Smoke script** (`scripts/mcp-smoke.mjs`) runs over stdio and prints token estimates:
 
+0. Server `instructions` + `listPrompts` / `getPrompt(skilling_workflow)`
 1. `list` / `skill_list`
 2. `select` (heuristic)
 3. `load` with `inject_mode: compact`

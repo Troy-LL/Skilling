@@ -19,9 +19,22 @@ Expect ~120–180 files, ~170 KB packed (no `src/`, `extension/`, or large optio
 ### Publish
 
 ```bash
-npm login
+npm test
+npm run pack:check
 npm publish --access public
 ```
+
+### 1.7.1 release (supersedes 1.7.0 on npm)
+
+Ship after merge when ready:
+
+```bash
+npm test          # unit + setup + hooks + smoke (MCP instructions + skilling_workflow prompt)
+npm run pack:check
+npm publish --access public
+```
+
+**1.7.1** includes: `--write-rules` opt-in and scoped rules writes, deeplink/config without `${workspaceFolder}`, smoke coverage for server instructions + MCP prompt, Claude Code MCP detect tied to `.mcp.json`/`.claude/`, global-host repoint messaging.
 
 First-time publishers need an npm account and a public GitHub repo ([Troy-LL/SkillPilot](https://github.com/Troy-LL/SkillPilot)).
 

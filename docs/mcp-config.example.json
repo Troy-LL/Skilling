@@ -2,10 +2,7 @@
   "mcpServers": {
     "skilling": {
       "command": "npx",
-      "args": ["-y", "skilling@latest"],
-      "env": {
-        "SKILL_ROOT": "${workspaceFolder}/.agents/skills"
-      }
+      "args": ["-y", "skilling@latest"]
     }
   }
 }

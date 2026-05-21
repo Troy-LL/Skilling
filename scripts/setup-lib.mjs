@@ -169,6 +169,7 @@ export function zedConfigPath(homeDir = os.homedir()) {
  * @property {(ctx: SetupContext) => boolean} detect
  * @property {(ctx: SetupContext) => string} configPath
  * @property {(ctx: SetupContext) => string | null} [rulesPath]
+ * @property {(ctx: SetupContext) => boolean} [rulesDetect]
  */
 
 /** @typedef {object} SetupContext
@@ -199,6 +200,8 @@ export const HOST_REGISTRY = [
     stdioType: true,
     rulesMode: 'append',
     rulesPath: (ctx) => path.join(ctx.projectRoot, '.github', 'copilot-instructions.md'),
+    rulesDetect: (ctx) =>
+      fs.existsSync(path.join(ctx.projectRoot, '.github', 'copilot-instructions.md')),
     detect: (ctx) => fs.existsSync(path.join(ctx.projectRoot, '.vscode')),
     configPath: (ctx) => path.join(ctx.projectRoot, '.vscode', 'mcp.json'),
   },
@@ -211,10 +214,10 @@ export const HOST_REGISTRY = [
     stdioType: true,
     rulesMode: 'write',
     rulesPath: (ctx) => path.join(ctx.projectRoot, '.claude', 'rules', 'skilling-lifecycle.md'),
+    rulesDetect: (ctx) => fs.existsSync(path.join(ctx.projectRoot, '.claude')),
     detect: (ctx) =>
       fs.existsSync(path.join(ctx.projectRoot, '.mcp.json')) ||
-      fs.existsSync(path.join(ctx.projectRoot, '.git')) ||
-      fs.existsSync(path.join(ctx.projectRoot, 'package.json')),
+      fs.existsSync(path.join(ctx.projectRoot, '.claude')),
     configPath: (ctx) => path.join(ctx.projectRoot, '.mcp.json'),
   },
   {
@@ -336,16 +339,23 @@ export function hasSkillingEntry(config, rootKey) {
   return bucket != null && typeof bucket === 'object' && SERVER_NAME in bucket;
 }
 
-/**
- * @returns {boolean}
- */
-export function canWriteRulesFile(rulesPath, writeRules) {
-  if (!rulesPath || !writeRules) return false;
-  return true;
-}
-
 function rulesSectionPresent(content) {
   return content.includes(SKILLING_RULES_HEADER) || content.includes('# Skilling MCP — lifecycle rules');
+}
+
+export function rulesTargetHint(host) {
+  switch (host.id) {
+    case 'vscode':
+      return 'create .github/copilot-instructions.md first';
+    case 'claude-code':
+      return '.claude/ absent';
+    case 'windsurf-rules':
+      return '.windsurfrules / .windsurf/ absent';
+    case 'jetbrains':
+      return '.junie/ absent';
+    default:
+      return 'target file absent';
+  }
 }
 
 function buildAppendedRules(content) {
@@ -356,13 +366,15 @@ function buildAppendedRules(content) {
 }
 
 /**
- * @returns {'written' | 'skipped' | 'would-write'}
+ * @returns {'written' | 'skipped' | 'skipped-no-target' | 'would-write'}
  */
 export async function writeHostRules(host, ctx, { writeRules = false, dryRun = false } = {}) {
   if (!host.rulesPath || !host.rulesMode || !writeRules) return 'skipped';
 
   const rulesPath = host.rulesPath(ctx);
-  if (!rulesPath || !canWriteRulesFile(rulesPath, writeRules)) return 'skipped';
+  if (!rulesPath) return 'skipped';
+
+  if (host.rulesDetect && !host.rulesDetect(ctx)) return 'skipped-no-target';
 
   let existing = '';
   if (fs.existsSync(rulesPath)) {
@@ -426,7 +438,7 @@ export function detectReason(host) {
     case 'vscode':
       return '.vscode/ absent';
     case 'claude-code':
-      return 'no project markers';
+      return 'no .mcp.json or .claude/';
     case 'continue':
       return 'not a project directory';
     case 'amazon-q':
@@ -530,9 +542,20 @@ export async function runSetup(argv = [], overrides = {}) {
         dryRun: flags.dryRun,
       });
       if (outcome === 'skipped') {
-        results.push({ host, status: 'skipped', configPath, reason: 'already configured (use --force)' });
+        results.push({
+          host,
+          status: 'skipped',
+          configPath,
+          reason: 'already configured (use --force)',
+          skillRoot: host.scope === 'global' ? skillRoot : undefined,
+        });
       } else {
-        results.push({ host, status: outcome === 'would-write' ? 'would-write' : 'ok', configPath });
+        results.push({
+          host,
+          status: outcome === 'would-write' ? 'would-write' : 'ok',
+          configPath,
+          skillRoot: host.scope === 'global' ? skillRoot : undefined,
+        });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -569,8 +592,16 @@ export async function runSetup(argv = [], overrides = {}) {
   for (const r of results) {
     if (r.status === 'ok' || r.status === 'would-write') {
       lines.push(`  [ok] ${r.host.label.padEnd(16)} → ${r.configPath}`);
+      if (r.host.scope === 'global' && r.skillRoot) {
+        lines.push(
+          `       Global SKILL_ROOT → ${r.skillRoot} (re-run setup --force from another project to repoint)`,
+        );
+      }
     } else if (r.status === 'skipped') {
       lines.push(`  [skip] ${r.host.label.padEnd(14)} ${r.reason}`);
+      if (r.host.scope === 'global') {
+        lines.push('       existing global entry unchanged (use --force to repoint SKILL_ROOT)');
+      }
     } else if (r.status === 'not-detected') {
       lines.push(`  [-]  ${r.host.label.padEnd(16)} not detected (${r.reason})`);
     } else if (r.status === 'rules-only') {
@@ -595,6 +626,8 @@ export async function runSetup(argv = [], overrides = {}) {
         lines.push(`  [ok] ${r.host.label.padEnd(16)} → ${rel}`);
       } else if (r.outcome === 'error') {
         lines.push(`  [!]  ${r.host.label.padEnd(16)} ${r.reason}`);
+      } else if (r.outcome === 'skipped-no-target') {
+        lines.push(`  [-]  ${r.host.label.padEnd(16)} skipped (${rulesTargetHint(r.host)})`);
       } else {
         lines.push(`  [-]  ${r.host.label.padEnd(16)} skipped (${rel})`);
       }

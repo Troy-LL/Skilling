@@ -45,9 +45,9 @@ function realPathBestEffort(p: string): string {
 export function skillRootSetupHint(resolvedPath: string): string {
   return [
     `Skilling: skill root not found at ${resolvedPath}`,
-    'Set SKILL_ROOT in your MCP server env (e.g. "${workspaceFolder}/.agents/skills") or pass --skill-root <path>.',
-    'npm/npx example env: SKILL_ROOT=/your/project/.agents/skills',
-    'Bundled catalog: npx -y Skilling (uses package .agents/skills unless SKILL_ROOT is set).',
+    'Use an absolute SKILL_ROOT in MCP env (e.g. SKILL_ROOT=/your/project/.agents/skills) or pass --skill-root <path>.',
+    'Most hosts do not expand ${workspaceFolder} — omit SKILL_ROOT and rely on discovery, or run npx skilling setup --force.',
+    'Bundled catalog: npx -y skilling@latest (uses package .agents/skills when no project root is found).',
   ].join('\n');
 }
 

@@ -4,11 +4,20 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildIndex, getSkillIndex, invalidateIndexCache, loadSkillBody } from './store.js';
+import { buildIndex, getSkillIndex, invalidateIndexCache, loadSkillBody, skillRootSetupHint } from './store.js';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const agentsSkills = path.join(repoRoot, '.agents', 'skills');
 const agentsMeta = path.join(repoRoot, '.agents', 'skills-meta');
+
+describe('skillRootSetupHint', () => {
+  it('steers toward absolute SKILL_ROOT and setup --force, not workspaceFolder templates', () => {
+    const hint = skillRootSetupHint('/bad/path');
+    assert.match(hint, /SKILL_ROOT=\/your\/project\/\.agents\/skills/);
+    assert.match(hint, /npx skilling setup --force/);
+    assert.doesNotMatch(hint, /"\$\{workspaceFolder\}\/\.agents\/skills"/);
+  });
+});
 
 describe('buildIndex', () => {
   it('indexes catalog skills in repo', () => {

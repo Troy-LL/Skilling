@@ -50,7 +50,7 @@ npx skilling setup --dry-run
 |------|-------------|-------|-----------------|
 | **Cursor** | `.cursor/mcp.json` | project | yes (when `.cursor/` exists) |
 | **VS Code Copilot** | `.vscode/mcp.json` | project | yes (when `.vscode/` exists) |
-| **Claude Code** | `.mcp.json` | project | yes (when project has `package.json` / `.git`) |
+| **Claude Code** | `.mcp.json` | project | yes (when `.mcp.json` or `.claude/` exists) |
 | **Continue** | `.continue/mcpServers/skilling.json` | project | yes (drop-in file) |
 | **Amazon Q** | `.amazonq/default.json` | project | yes (when project markers exist) |
 | **Claude Desktop** | platform path¹ | global | yes |
@@ -65,7 +65,7 @@ npx skilling setup --dry-run
 - **Most hosts** — root key `mcpServers`, entry `{ command, args }`
 - **VS Code / Claude Code** — root key `servers` or `mcpServers` with `"type": "stdio"`
 - **Zed** — root key `context_servers`
-- **Global hosts** — `env.SKILL_ROOT` set to your project's `.agents/skills` (absolute), because their cwd is not your workspace
+- **Global hosts** — `env.SKILL_ROOT` set to your project's `.agents/skills` (absolute), because their cwd is not your workspace. Setup prints the baked path; re-run `npx skilling setup --force` from another project to repoint it.
 
 ---
 
@@ -93,8 +93,8 @@ Skilling ships three layers so agents understand the workflow in any MCP-capable
 
 | IDE | Rules file |
 |-----|------------|
-| VS Code | `.github/copilot-instructions.md` (appends `## Skilling MCP`) |
-| Claude Code | `.claude/rules/skilling-lifecycle.md` (creates or appends — never overwrites custom content) |
+| VS Code | `.github/copilot-instructions.md` (appends section; only when that file already exists) |
+| Claude Code | `.claude/rules/skilling-lifecycle.md` (creates or appends; only when `.claude/` exists) |
 | Windsurf | `.windsurfrules` (appends section; only when `.windsurfrules` or `.windsurf/` exists in the project) |
 | JetBrains | `.junie/guidelines.md` (appends section; only when `.junie/` exists) |
 
@@ -142,6 +142,7 @@ See [`docs/MCP_TESTING.md`](MCP_TESTING.md).
 | `STORE_UNAVAILABLE` | Empty or missing `.agents/skills` | Re-run `npm install skilling` or `npx skilling setup` |
 | MCP not listed after setup | IDE not restarted | Quit and reopen the IDE |
 | Stale paths after Node upgrade | Old absolute paths in config | `npx skilling setup --force` |
+| Wrong skills on Claude Desktop / Windsurf / Zed | Global `SKILL_ROOT` points at another project | Run setup from the active project: `npx skilling setup --force` |
 | `begin_task` validation error ~0.3x confidence | Weak heuristic match | Pass explicit `skill_id` or use `load` with `inject_mode: compact` |
 
 ### Selector and logging
