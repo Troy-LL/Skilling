@@ -22,6 +22,47 @@ import { requireNonEmptyTrimmed } from './validate.js';
 
 type ToolResult = ReturnType<typeof toolOk>;
 
+const LOW_LEVEL_TOOL_NOTE = ' Low-level tool — use for debugging or custom flows, not routine work.';
+
+const SERVER_INSTRUCTIONS = `Skilling is an MCP skill router for AI coding agents. It selects procedural skills from .agents/skills/, shapes their body to a token budget, and manages task sessions with TTL and cleanup.
+
+Normal workflow: skill_plan (optional for multi-step goals) → begin_task → follow the returned body → end_task when the stage completes or topic changes.
+
+Session source of truth: .skilling/session.json (active skill, summary, TTL) and .skilling/active-body.md (ephemeral bridge). Call get_session before begin_task to check if a session is already active.
+
+Do NOT: invent skill_id values; use list/select/load for routine work (debugging only); use find-skills except when the user wants to discover or install ecosystem skills.
+
+On errors: read the message. VALIDATION_ERROR usually means pass an explicit skill_id or call list for valid IDs. STORE_UNAVAILABLE means call health or run npx skilling setup --force.
+
+Fetch the skilling_workflow prompt for the full lifecycle procedure.`;
+
+const SKILLING_WORKFLOW_PROMPT = `# Skilling task lifecycle
+
+## Procedure
+
+1. For multi-step goals, call **skill_plan** with the goal; review \`skills_needed\`, \`confidence\`, and \`estimated_tokens\`.
+2. **Low-confidence routing:** if \`skill_plan\` returns \`confidence < 0.35\` or \`skills_needed\` is empty, **do not** call **begin_task** with a guessed skill — proceed with native coding or call **find-skills** to discover a better match.
+3. If **\`.skilling/active-body.md\`** exists (hook auto-routed), follow it for this turn; otherwise call **get_session** — if \`active: false\`, call **begin_task** with the user goal and optional \`phase\` (\`response_detail\` defaults to summary). Pass **token_budget** when context is tight.
+4. Obey skill **body** (from tool result or bridge file) until the stage is done.
+5. **end_task** before switching topic or phase; start a new **begin_task** for the next stage.
+
+## User-facing presentation
+
+- After routing: reply with **one sentence** using \`summary\` from the tool or session.
+- **Never** show \`alternatives\`, skill menus, \`list\` output, or raw score tables to the user.
+- Do not ask the user to pick a \`skill_id\`.
+
+## End or switch tasks
+
+- Before an unrelated topic or new dev stage: **end_task** (uses \`.skilling/session.json\` when \`correlation_id\` is omitted).
+- Do not read \`.agents/skills/\` paths directly when MCP tools are available (except **\`.skilling/active-body.md\`** bridge).
+
+## Do not
+
+- Call **list** / **select** / **load** in normal work (debugging only).
+- Skip **end_task** when moving to unrelated work.
+- Use routing when the user only wants to **find or install** external skills — use **find-skills**.`;
+
 function toolError(code: SkillingErrorCode, message: string) {
   const payload = errorPayload(code, message);
   return {
@@ -133,11 +174,16 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   const rootDisplay = path.resolve(skillRoot);
   const repoRoot = resolveRepoRootFromSkillRoot(rootDisplay);
 
-  const mcp = new McpServer({
-    name: 'skilling',
-    version: PACKAGE_VERSION,
-    title: 'Skilling',
-  });
+  const mcp = new McpServer(
+    {
+      name: 'skilling',
+      version: PACKAGE_VERSION,
+      title: 'Skilling',
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    },
+  );
 
   const listHandler = async (input?: { tags?: string[] }) =>
     runList(rootDisplay, config, input?.tags);
@@ -146,7 +192,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'list',
     {
       description:
-        'List valid skills under SKILL_ROOT (Tier 0+1: id, title, summary, tags). Fails if store invalid.',
+        'List valid skills under SKILL_ROOT (Tier 0+1: id, title, summary, tags). Fails if store invalid.' +
+        LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         tags: z
           .array(z.string())
@@ -166,7 +213,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_list',
     {
-      description: 'Alias for list — enumerate skills (summaries only, no bodies).',
+      description:
+        'Alias for list — enumerate skills (summaries only, no bodies).' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         tags: z.array(z.string()).optional(),
       },
@@ -192,7 +240,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'select',
     {
       description:
-        'Heuristically pick the best skill_id (Tier 1 only). Prefer begin_task for full lifecycle.',
+        'Heuristically pick the best skill_id (Tier 1 only). Prefer begin_task for full lifecycle.' +
+        LOW_LEVEL_TOOL_NOTE,
       inputSchema: selectInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -207,7 +256,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_select',
     {
-      description: 'Alias for select — match prompt to skill using summaries only.',
+      description:
+        'Alias for select — match prompt to skill using summaries only.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: selectInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -223,7 +273,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'skill_plan',
     {
       description:
-        'Plan which skills are needed for a goal (Tier 1 only). Does not inject bodies. Use before begin_task on complex work.',
+        'Call before begin_task on multi-step goals to discover which skills are needed and in what order. Returns plan steps, skills_needed (with confidence), estimated_tokens. If confidence < 0.35 or skills_needed is empty, proceed without skill injection or use find-skills to grow the catalog.',
       inputSchema: {
         goal: z.string().describe('High-level task or goal'),
         context: z.string().optional(),
@@ -274,7 +324,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'load',
     {
       description:
-        'Load shaped injectable skill body. Returns token_estimate, ttl_hint, merge_hint.',
+        'Load shaped injectable skill body. Returns token_estimate, ttl_hint, merge_hint.' +
+        LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         skill_id: z.string(),
         correlation_id: z.string().optional(),
@@ -300,7 +351,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_inject',
     {
-      description: 'Alias for load — inject skill body for current task.',
+      description:
+        'Alias for load — inject skill body for current task.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         skill_id: z.string(),
         correlation_id: z.string().optional(),
@@ -325,7 +377,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'cleanup',
     {
-      description: 'Idempotent cleanup for a correlation_id.',
+      description:
+        'Idempotent cleanup for a correlation_id.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         correlation_id: z.string().describe('UUID from load or begin_task'),
       },
@@ -342,7 +395,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_cleanup',
     {
-      description: 'Alias for cleanup.',
+      description: 'Alias for cleanup.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: {
         correlation_id: z.string(),
       },
@@ -359,7 +412,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'health',
     {
-      description: 'Read-only health check: skill root readable and index builds.',
+      description:
+        'Verify the skill store is reachable before starting work. Returns ok, skill_count, skills_root. Call this if STORE_UNAVAILABLE errors appear — the root path may need fixing with npx skilling setup --force.',
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -383,7 +437,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'get_session',
     {
       description:
-        'Read active task session from .skilling/session.json. Expired TTL returns { active: false, expired: true } and clears session + active-body.md. include_body returns active-body.md when present, else reshapes using session inject_mode (read-only, no new correlation_id).',
+        'Check whether a task session is currently active before deciding to call begin_task. Returns active, skill_id, summary, inject_mode. Expired TTL returns active:false and auto-clears. Use include_body to re-read shaped skill content without opening a new correlation.',
       inputSchema: {
         include_summary: z.boolean().optional(),
         include_body: z.boolean().optional(),
@@ -409,7 +463,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'begin_task',
     {
       description:
-        'Preferred task start: select + shaped load + session file. SKILL_ROOT defaults to .agents/skills.',
+        'Start of every focused dev task. Selects the best skill, injects a shaped body within token_budget, and opens a session. Returns skill_id, body (follow it), token_estimate, correlation_id. Call end_task when the stage is done or topic changes. On VALIDATION_ERROR: call list for valid skill_ids or pass skill_id explicitly.',
       inputSchema: {
         prompt: z.string(),
         goal: z.string().optional(),
@@ -445,7 +499,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'end_task',
     {
-      description: 'Preferred task end: cleanup + clear session.',
+      description:
+        'Call after every stage completes or before switching to an unrelated topic. Cleans up the correlation registry and clears .skilling/session.json + active-body.md. Idempotent — safe to call twice. Do NOT skip this.',
       inputSchema: {
         correlation_id: z.string().uuid().optional(),
       },
@@ -463,6 +518,26 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
         return handleError('end_task', e);
       }
     },
+  );
+
+  mcp.registerPrompt(
+    'skilling_workflow',
+    {
+      title: 'Skilling lifecycle workflow',
+      description:
+        'Full Skilling MCP lifecycle procedure — plan, begin_task, follow body, end_task. Fetch when you need the complete workflow guide.',
+    },
+    async () => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: SKILLING_WORKFLOW_PROMPT,
+          },
+        },
+      ],
+    }),
   );
 
   return mcp;

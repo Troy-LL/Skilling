@@ -1,6 +1,6 @@
 {
   "name": "skilling",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "MCP skill router: select, inject, and evict agent skills with tiered token budgets.",
   "author": {
     "name": "Skilling Contributors"
