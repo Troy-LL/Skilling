@@ -1,6 +1,6 @@
 {
   "name": "skilling",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Skilling MCP — filesystem skill router (list / select / load / cleanup)",
   "type": "module",
   "main": "dist/index.js",

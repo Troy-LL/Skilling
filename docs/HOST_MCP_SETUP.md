@@ -33,6 +33,7 @@ No prompts. No confirmations.
 | Flag | Effect |
 |------|--------|
 | `--force` | Overwrite existing `skilling` MCP entries (after Node upgrade or project move) |
+| `--write-rules` | Write lifecycle rules to IDE rules files when their directories already exist |
 | `--dry-run` | Show what would be written; touch no files |
 | `--help` | Usage |
 
@@ -79,6 +80,27 @@ npx skilling setup --dry-run
 5. Prints JetBrains manual snippet and a per-host summary
 
 **SKILL_ROOT at runtime** (when MCP starts): `--skill-root` → `SKILL_ROOT` env → `skilling.config.json` → walk up from cwd for `.agents/skills` → bundled catalog. Literal `${workspaceFolder}` in env is ignored.
+
+### AI comprehension
+
+Skilling ships three layers so agents understand the workflow in any MCP-capable IDE — not only Cursor:
+
+1. **Server instructions** — sent to the model automatically on every MCP connection (workflow, session files, what not to do).
+2. **Tool descriptions** — lifecycle tools (`begin_task`, `end_task`, `get_session`, `skill_plan`, `health`) describe when/why/what-next, not just mechanics.
+3. **`skilling_workflow` MCP prompt** — fetch on demand for the full orchestrator procedure (plan → implement → review, presentation rules, end/switch tasks).
+
+**Per-IDE rules files** — `npx skilling setup --write-rules` writes lifecycle rules when the target path or its parent directory already exists:
+
+| IDE | Rules file |
+|-----|------------|
+| VS Code | `.github/copilot-instructions.md` (appends `## Skilling MCP`) |
+| Claude Code | `.claude/rules/skilling-lifecycle.md` |
+| Windsurf | `.windsurfrules` (appends section) |
+| JetBrains | `.junie/guidelines.md` (appends section) |
+
+Cursor rules live at `.cursor/rules/skilling-lifecycle.mdc` (bundled with the plugin; setup does not overwrite them).
+
+**Manual setup** — for Claude Desktop, Zed, or other hosts without a standard rules file, paste the lifecycle rules block from [`docs/HOST_MCP_SETUP.md`](HOST_MCP_SETUP.md) or fetch the `skilling_workflow` MCP prompt into your system prompt / custom instructions.
 
 ---
 
