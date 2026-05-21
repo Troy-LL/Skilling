@@ -145,6 +145,8 @@ async function main() {
     }
 
     const payload = runBeginTask(serverRoot, skillRoot, prompt);
+    // begin_task (MCP) also writes active-body.md under repo root derived from skill root;
+    // write here so the workspace-root bridge exists when hook workspace matches skill repo.
     if (payload?.skill_id && payload?.body) {
       writeActiveBody(workspaceRoot, payload.skill_id, payload.body);
       log(`routed to ${payload.skill_id}`);

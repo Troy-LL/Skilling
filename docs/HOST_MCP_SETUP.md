@@ -25,6 +25,11 @@ npm run smoke
 
 Restart the `skillpilot` MCP server in Cursor. You should see **`skill_plan`**, **`health`**, **`skill_list`** aliases, and lifecycle tools.
 
+### Selector and logging
+
+- **`SKILLPILOT_SELECTOR`**: only **`heuristic`** is implemented today. Values `embedding` or `llm` log a one-time warning and fall back to heuristic.
+- **`SKILLPILOT_LOG_PROMPTS=true`**: logs truncated prompt/goal snippets at debug level for `select`, `skill_plan`, and `begin_task` (stderr JSON lines).
+
 ## VS Code
 
 Use the same `mcpServers.skillpilot` object per your MCP extension’s JSON config.

@@ -43,3 +43,10 @@ export function logToolError(
 ): void {
   logEvent('error', tool, { ok: false, code, ...fields });
 }
+
+/** When SKILLPILOT_LOG_PROMPTS=true, log a truncated prompt/goal snippet at debug level. */
+export function logPromptSnippet(tool: string, text: string): void {
+  if (!activeConfig?.logPrompts || !text) return;
+  const snippet = text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  logEvent('debug', tool, { prompt_snippet: snippet });
+}

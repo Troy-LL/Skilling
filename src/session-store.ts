@@ -71,7 +71,9 @@ export function readSession(repoRoot: string): SkillSession | null {
       return normalizeV1(raw);
     }
     return null;
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    process.stderr.write(`skillpilot: corrupt session.json ignored: ${msg}\n`);
     return null;
   }
 }

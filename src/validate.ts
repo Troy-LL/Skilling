@@ -5,9 +5,19 @@ import {
   SKILL_ID_MIN,
   SKILL_ID_REGEX,
 } from './constants.js';
+import { SkillPilotError } from './errors.js';
 
 export function isValidSkillId(id: string): boolean {
   return id.length >= SKILL_ID_MIN && id.length <= SKILL_ID_MAX && SKILL_ID_REGEX.test(id);
+}
+
+/** Trim and reject empty strings with VALIDATION_ERROR (MCP tool inputs). */
+export function requireNonEmptyTrimmed(value: string | undefined, label: string): string {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) {
+    throw new SkillPilotError('VALIDATION_ERROR', `${label} requires a non-empty value.`);
+  }
+  return trimmed;
 }
 
 const TAG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;

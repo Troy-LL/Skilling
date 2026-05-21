@@ -105,4 +105,16 @@ describe('session-store', () => {
       fs.rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  it('readSession returns null for corrupt json', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-session-bad-'));
+    try {
+      const dir = path.join(repo, '.skillpilot');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'session.json'), '{not json', 'utf8');
+      assert.equal(readSession(repo), null);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });

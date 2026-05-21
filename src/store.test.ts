@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildIndex, loadSkillBody } from './store.js';
+import { buildIndex, getSkillIndex, invalidateIndexCache, loadSkillBody } from './store.js';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const agentsSkills = path.join(repoRoot, '.agents', 'skills');
@@ -56,5 +56,51 @@ describe('loadSkillBody', () => {
       () => loadSkillBody(agentsSkills, 'no-such-skill-id'),
       (e: Error) => e.message.includes('Unknown skill_id') && e.message.includes('list tool'),
     );
+  });
+});
+
+describe('getSkillIndex cache', () => {
+  it('reflects in-place SKILL.md edits without restart', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-cache-'));
+    try {
+      const skillDir = path.join(tmp, 'alpha-skill');
+      fs.mkdirSync(skillDir, { recursive: true });
+      const skillFile = path.join(skillDir, 'SKILL.md');
+      fs.writeFileSync(
+        skillFile,
+        `---
+id: alpha-skill
+title: Alpha
+summary: First summary
+---
+body
+`,
+        'utf8',
+      );
+      invalidateIndexCache();
+      const first = getSkillIndex(tmp);
+      assert.equal(first.ok, true);
+      if (!first.ok) return;
+      assert.equal(first.skills[0]!.summary, 'First summary');
+
+      fs.writeFileSync(
+        skillFile,
+        `---
+id: alpha-skill
+title: Alpha
+summary: Updated summary
+---
+body
+`,
+        'utf8',
+      );
+      const second = getSkillIndex(tmp);
+      assert.equal(second.ok, true);
+      if (!second.ok) return;
+      assert.equal(second.skills[0]!.summary, 'Updated summary');
+    } finally {
+      invalidateIndexCache();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

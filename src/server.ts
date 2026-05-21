@@ -6,7 +6,8 @@ import type { SkillPilotConfig } from './config.js';
 import { MAX_SELECT_INPUT_CHARS } from './constants.js';
 import { SkillPilotError, errorPayload, type SkillPilotErrorCode } from './errors.js';
 import { importSkillFromAgents, resolveRepoRoot } from './import-skill.js';
-import { logToolError, logToolOk } from './observability.js';
+import { logPromptSnippet, logToolError, logToolOk } from './observability.js';
+import { PACKAGE_VERSION } from './package-version.js';
 import { getSelector, planFromCandidates } from './selector/index.js';
 import {
   beginTask,
@@ -18,6 +19,7 @@ import {
   validateSkillIdForLoad,
 } from './task-lifecycle.js';
 import { formatIndexError, getSkillIndex } from './store.js';
+import { requireNonEmptyTrimmed } from './validate.js';
 
 type ToolResult = ReturnType<typeof toolOk>;
 
@@ -67,6 +69,7 @@ async function runSelect(
   if (!trimmedPrompt && !(input.goal?.trim())) {
     return toolError('VALIDATION_ERROR', 'select requires a non-empty prompt or goal.');
   }
+  logPromptSnippet('select', trimmedPrompt || input.goal!.trim());
   if (input.prompt.length > MAX_SELECT_INPUT_CHARS || (input.goal?.length ?? 0) > MAX_SELECT_INPUT_CHARS) {
     return toolError(
       'VALIDATION_ERROR',
@@ -133,7 +136,7 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
 
   const mcp = new McpServer({
     name: 'skillpilot',
-    version: '1.4.0',
+    version: PACKAGE_VERSION,
     title: 'SkillPilot',
   });
 
@@ -236,10 +239,12 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
     },
     async ({ goal, context, max_skills }) => {
       try {
+        const trimmedGoal = requireNonEmptyTrimmed(goal, 'skill_plan goal');
         const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
         if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
+        logPromptSnippet('skill_plan', trimmedGoal);
         const plan = planFromCandidates([...index.metas.values()], {
-          goal: goal.trim(),
+          goal: trimmedGoal,
           context: context?.trim(),
           max_skills: max_skills ?? 5,
         });
@@ -426,6 +431,7 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
     },
     async (input) => {
       try {
+        logPromptSnippet('begin_task', input.prompt.trim() || input.goal?.trim() || '');
         return toolOk(
           beginTask(rootDisplay, repoRoot, config, input) as unknown as Record<string, unknown>,
         );

@@ -1,6 +1,6 @@
 {
   "name": "skillpilot-mcp",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "SkillPilot MCP — filesystem skill router (list / select / load / cleanup)",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,7 @@
     "prepack": "npm run build",
     "start": "node dist/index.js",
     "mcp": "node dist/index.js",
-    "test": "npm run build && node --test dist/**/*.test.js",
+    "test": "npm run build && node --test dist/**/*.test.js && npm run test:auto-begin-hook && npm run test:session-end-hook",
     "smoke": "node scripts/mcp-smoke.mjs",
     "test:session-end-hook": "node scripts/test-session-end-hook.mjs",
     "test:auto-begin-hook": "node scripts/test-auto-begin-hook.mjs",

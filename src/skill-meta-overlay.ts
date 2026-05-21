@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { MAX_PRIMARY_BYTES } from './constants.js';
 import type { SkillFrontMatter } from './parse.js';
 import {
   validateClients,
@@ -29,6 +30,12 @@ export function loadSkillMetaOverlay(
 ): Record<string, unknown> | null {
   const p = overlayPath(skillsMetaDir, skillId);
   if (!fs.existsSync(p)) return null;
+  const stat = fs.statSync(p);
+  if (stat.size > MAX_PRIMARY_BYTES) {
+    throw new Error(
+      `skills-meta overlay exceeds ${MAX_PRIMARY_BYTES} bytes: ${p}`,
+    );
+  }
   const raw = fs.readFileSync(p, 'utf8');
   const data = parseYaml(raw);
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {

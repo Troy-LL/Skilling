@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import path from 'node:path';
 import { assertPathUnderRoot } from './store.js';
-import { isValidSkillId } from './validate.js';
+import { SkillPilotError } from './errors.js';
+import { isValidSkillId, requireNonEmptyTrimmed } from './validate.js';
 
 describe('isValidSkillId', () => {
   it('accepts valid ids', () => {
@@ -30,6 +31,22 @@ describe('assertPathUnderRoot', () => {
     assert.throws(
       () => assertPathUnderRoot(root, path.resolve(root, '..', 'etc', 'passwd')),
       /outside skill root/,
+    );
+  });
+});
+
+describe('requireNonEmptyTrimmed', () => {
+  it('returns trimmed value', () => {
+    assert.equal(requireNonEmptyTrimmed('  hello  ', 'goal'), 'hello');
+  });
+
+  it('throws on empty', () => {
+    assert.throws(
+      () => requireNonEmptyTrimmed('   ', 'skill_plan goal'),
+      (e: unknown) =>
+        e instanceof SkillPilotError &&
+        e.code === 'VALIDATION_ERROR' &&
+        e.message.includes('skill_plan goal'),
     );
   });
 });

@@ -63,6 +63,44 @@ export function invalidateIndexCache(): void {
   indexCache = null;
 }
 
+/** Max mtime across skill files and overlay YAML — detects in-place edits without root dir mtime change. */
+function computeIndexSignalMtime(rootReal: string, metaDir: string): number {
+  let max = 0;
+  try {
+    max = Math.max(max, fs.statSync(rootReal).mtimeMs);
+  } catch {
+    /* ignore */
+  }
+  try {
+    for (const d of fs.readdirSync(rootReal, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const skillMd = path.join(rootReal, d.name, 'SKILL.md');
+      try {
+        max = Math.max(max, fs.statSync(skillMd).mtimeMs);
+      } catch {
+        /* ignore missing SKILL.md */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (fs.existsSync(metaDir)) {
+      for (const f of fs.readdirSync(metaDir)) {
+        if (!f.endsWith('.yaml')) continue;
+        try {
+          max = Math.max(max, fs.statSync(path.join(metaDir, f)).mtimeMs);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return max;
+}
+
 /** Ensure candidate is under root (after resolve). */
 export function assertPathUnderRoot(rootReal: string, candidateAbs: string): void {
   const rel = path.relative(rootReal, candidateAbs);
@@ -152,12 +190,7 @@ export function buildIndex(skillRoot: string, skillsMetaDir?: string): SkillInde
 export function getSkillIndex(skillRoot: string, skillsMetaDir?: string): SkillIndex {
   const rootReal = resolveSkillRoot(skillRoot);
   const metaDir = skillsMetaDir ?? resolveSkillsMetaDir(rootReal);
-  let mtimeMs = 0;
-  try {
-    mtimeMs = fs.statSync(rootReal).mtimeMs;
-  } catch {
-    return buildIndex(skillRoot, metaDir);
-  }
+  const mtimeMs = computeIndexSignalMtime(rootReal, metaDir);
   if (
     indexCache &&
     indexCache.rootReal === rootReal &&

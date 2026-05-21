@@ -10,8 +10,10 @@ import type { SelectResult } from './selector/types.js';
 import { resolveInjectMode, shapeSkillBody, type InjectMode } from './shape-body.js';
 import {
   clearSession,
+  isSessionActive,
   readSession,
   type SkillSessionWrite,
+  writeActiveBody,
   writeSession,
 } from './session-store.js';
 import { buildSessionSummary, promptFingerprint } from './session-summary.js';
@@ -199,7 +201,9 @@ export function beginTask(
   if (input.end_previous !== false) {
     const prev = readSession(repoRoot);
     if (prev?.correlation_id) {
-      runCleanup(prev.correlation_id);
+      if (isSessionActive(prev)) {
+        runCleanup(prev.correlation_id);
+      }
       clearSession(repoRoot);
       previous_ended = true;
     }
@@ -257,6 +261,7 @@ export function beginTask(
     ...(input.phase?.trim() ? { phase: input.phase.trim() } : {}),
   };
   writeSession(repoRoot, sessionPayload);
+  writeActiveBody(repoRoot, episode.skill_id, episode.body);
 
   const full: BeginTaskResultFull = {
     ...episode,
@@ -276,7 +281,14 @@ export function endTask(
   correlation_id?: string,
 ): EndTaskResult & { skill_id?: string } {
   const session = readSession(repoRoot);
-  const id = correlation_id?.trim() || session?.correlation_id;
+  const passedId = correlation_id?.trim();
+  if (session && passedId && passedId !== session.correlation_id) {
+    throw new SkillPilotError(
+      'VALIDATION_ERROR',
+      'correlation_id does not match the active session. Omit correlation_id or pass the session correlation_id.',
+    );
+  }
+  const id = passedId || session?.correlation_id;
   if (!id) {
     throw new SkillPilotError(
       'VALIDATION_ERROR',
@@ -296,6 +308,14 @@ export function getSession(
 ): GetSessionResult {
   const session = readSession(repoRoot);
   if (!session) return { active: false };
+
+  if (!isSessionActive(session)) {
+    if (session.correlation_id) {
+      runCleanup(session.correlation_id);
+    }
+    clearSession(repoRoot);
+    return { active: false };
+  }
 
   const includeSummary = options?.include_summary !== false;
   const includeBody = options?.include_body === true;

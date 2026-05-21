@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { SkillPilotError } from './errors.js';
 import { parseSkillMarkdown } from './parse.js';
 import type { SkillFrontMatter } from './parse.js';
+import { assertPathUnderRoot, buildIndex, invalidateIndexCache } from './store.js';
 import { isValidSkillId } from './validate.js';
-import { buildIndex } from './store.js';
 
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
 
@@ -133,6 +134,36 @@ export function resolveRepoRoot(skillRoot: string, repoRootArg?: string): string
   return root;
 }
 
+/** Validate `.agents/skills/<folder>` name; reject path traversal. */
+export function validateAgentsFolder(agentsFolder: string): string {
+  const trimmed = agentsFolder.trim();
+  if (!trimmed) {
+    throw new SkillPilotError('VALIDATION_ERROR', 'agents_folder must be a non-empty skill folder name.');
+  }
+  if (trimmed.includes('..') || trimmed.includes('/') || trimmed.includes('\\')) {
+    throw new SkillPilotError(
+      'VALIDATION_ERROR',
+      'agents_folder must not contain path segments.',
+    );
+  }
+  if (!isValidSkillId(trimmed)) {
+    throw new SkillPilotError(
+      'VALIDATION_ERROR',
+      `Invalid agents_folder (must match skill-rules §2): ${trimmed}`,
+    );
+  }
+  return trimmed;
+}
+
+export function resolveAgentsSkillPath(repoRoot: string, agentsFolder: string): string {
+  const folder = validateAgentsFolder(agentsFolder);
+  const agentsSkillsRoot = path.resolve(repoRoot, '.agents', 'skills');
+  const source = path.resolve(agentsSkillsRoot, folder, 'SKILL.md');
+  const rootReal = fs.realpathSync.native(agentsSkillsRoot);
+  assertPathUnderRoot(rootReal, source);
+  return source;
+}
+
 export function importSkillFromPath(
   sourceSkillMd: string,
   skillRoot: string,
@@ -159,6 +190,7 @@ export function importSkillFromPath(
   const content = buildFrontMatterBlock(meta, body, options.source);
   fs.writeFileSync(destFile, content, 'utf8');
   parseSkillMarkdown(content, meta.id);
+  invalidateIndexCache();
   return { skill_id: meta.id, dest_path: destFile, warnings };
 }
 
@@ -168,15 +200,10 @@ export function importSkillFromAgents(
   skillRoot: string,
   options: ImportSkillOptions = {},
 ): ImportSkillResult {
-  const source = path.join(
-    path.resolve(repoRoot),
-    '.agents',
-    'skills',
-    agentsFolder,
-    'SKILL.md',
-  );
+  const folder = validateAgentsFolder(agentsFolder);
+  const source = resolveAgentsSkillPath(repoRoot, folder);
   return importSkillFromPath(source, skillRoot, {
     ...options,
-    source: options.source ?? `agents:${agentsFolder}`,
+    source: options.source ?? `agents:${folder}`,
   });
 }

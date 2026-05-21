@@ -28,9 +28,9 @@ Path: **`.skillpilot/session.json`** at the repo root (gitignored). Written by *
 | Tool | Role |
 |------|------|
 | **`skill_plan`** | Tier-1-only plan + `skills_needed` before multi-phase work |
-| **`begin_task`** | `select` (unless `skill_id`) + shaped `load` + write session; `token_budget`, `phase` |
+| **`begin_task`** | `select` (unless `skill_id`) + shaped `load` + write session + **`.skillpilot/active-body.md`** bridge; `token_budget`, `phase` |
 | **`end_task`** | `cleanup` + clear session |
-| **`get_session`** | Read active episode or `{ active: false }` |
+| **`get_session`** | Read active episode or `{ active: false }` (inactive when TTL expired — clears stale session files, same as auto-begin hook) |
 | `list` / `skill_list`, `select`, `load`, `health` | Debugging and catalog checks |
 | `ingest` | Optional copy `.agents/skills` → `skills/` |
 
@@ -49,6 +49,8 @@ Path: **`.skillpilot/session.json`** at the repo root (gitignored). Written by *
 - Rules are **soft**; the model may still skip tools.
 - Session file tracks the **last begin_task** in this repo; it does not remove text from the host context by itself.
 - **`cleanup`** in the MCP process is bookkeeping; the host must drop injected guidance.
+- **Correlation registry** is in-memory per MCP process. Hooks spawn a short-lived MCP child ([`scripts/extension-begin-task.mjs`](../scripts/extension-begin-task.mjs), [`extension-cleanup.mjs`](../scripts/extension-cleanup.mjs)); **`end_task`** and session files on disk are the durable SOT across processes.
+- Corrupt **`.skillpilot/session.json`** is treated as no session (stderr warning once on parse failure).
 
 ## E2 — Phase 1 (implemented)
 
@@ -60,7 +62,7 @@ Project hook **`.cursor/hooks.json`** runs on **`sessionEnd`** (composer convers
 | 2 | Run **`scripts/extension-cleanup.mjs`** (`cleanup` via stdio MCP) |
 | 3 | Delete session file on success |
 
-Script: **`.cursor/hooks/skillpilot-session-end.mjs`** (Node; logs to stderr).
+Script: **[`hooks/skillpilot-session-end.mjs`](../hooks/skillpilot-session-end.mjs)** (Node; logs to stderr).
 
 **Why not `stop`?** The `stop` hook fires after each agent loop turn; cleaning there would drop the session mid-chat. Use **`end_task`** in chat when switching topics without closing the composer.
 
@@ -97,14 +99,14 @@ npm run test:session-end-hook
 
 ### Auto `begin_task` hook
 
-**`beforeSubmitPrompt`** → [`.cursor/hooks/skillpilot-auto-begin.mjs`](../.cursor/hooks/skillpilot-auto-begin.mjs):
+**`beforeSubmitPrompt`** → [`hooks/skillpilot-auto-begin.mjs`](../hooks/skillpilot-auto-begin.mjs):
 
 | Step | Behavior |
 |------|----------|
 | 1 | Skip if opt-out (`SKILLPILOT_SKIP_AUTO_BEGIN=1` or `.skillpilot/disable-auto-begin`) |
 | 2 | Skip if session exists and TTL not expired |
 | 3 | If expired → cleanup, then `begin_task` via [`scripts/extension-begin-task.mjs`](../scripts/extension-begin-task.mjs) |
-| 4 | Write **`.skillpilot/active-body.md`** bridge (ephemeral skill body) |
+| 4 | Write **`.skillpilot/active-body.md`** bridge when MCP returns `body` (MCP **`begin_task`** also writes the bridge; hook ensures workspace-root copy when paths align) |
 | 5 | Return `{ "continue": true }` (fail-open on errors) |
 
 Reload Cursor after changing [`.cursor/hooks.json`](../.cursor/hooks.json). Requires `npm run build`.
