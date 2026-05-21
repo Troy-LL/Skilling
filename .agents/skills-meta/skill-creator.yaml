@@ -11,6 +11,8 @@ triggers:
   - package a skill
   - skill creator
   - author and package a reusable skill
+inject: false
+redirect_note: "Monolith retained for compatibility. Route to skill-creator-authoring (draft), skill-creator-eval (test runs), or skill-creator-benchmark (description/trigger optimization)."
 inject_mode_default: compact
 inject_sections:
   - Procedure

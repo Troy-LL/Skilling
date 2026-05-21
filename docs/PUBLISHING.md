@@ -24,6 +24,25 @@ npm run pack:check
 npm publish --access public
 ```
 
+### 2.1.0 release (catalog chunking + routing polish)
+
+Ship after merge when ready:
+
+```bash
+npm test          # unit + setup + hooks + smoke
+npm run benchmark # Section 2b selection regression + per-chunk rows
+npm run pack:check
+npm publish --access public
+```
+
+**2.1.0** highlights (non-breaking):
+
+- Hybrid **chunk skills** for `mcp-builder`, `skill-creator`, and `create-hook` (legacy monolith ids catalog-only)
+- **`suggest_skills` weak band** (≥0.15) with `weak_candidates`; aligned rounding vs `skill_plan` `included`
+- Metadata overlays: orchestrator, find-skills, create-rule; `inject_brief` / `inject_sections` fixes
+- Docs sync (README, SKILLS_CATALOG, HOST_MCP_SETUP v1 migration); post-publish MCP restart checklist
+- Smoke/benchmark: shaping metadata asserts, per-chunk compact inject rows, selection regression on chunk ids
+
 ### 2.0.0 release (breaking — context engine rework)
 
 Ship after merge when ready:
@@ -51,6 +70,8 @@ npm publish --access public
 First-time publishers need an npm account and a public GitHub repo ([Troy-LL/SkillPilot](https://github.com/Troy-LL/SkillPilot)).
 
 After publish, users install from **[cursor.directory/plugins/skilling](https://cursor.directory/plugins/skilling)** (full plugin; **Add to Cursor** on that page) or via `npm install skilling` for zero-config auto-setup.
+
+**Post-publish (required):** restart or reload the MCP server in every host (Cursor, Claude Desktop, VS Code, etc.) so clients load new tools and schemas. Verify with `npm run smoke` or MCP Inspector (`suggest_skills` present; `begin_task` without `skill_id` returns validation error).
 
 ---
 

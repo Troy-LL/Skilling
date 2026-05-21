@@ -710,6 +710,12 @@ export async function runPostinstall(overrides = {}) {
 
   if (shouldSkipAutoSetup(env)) {
     const { seeded } = await seedFindSkills(projectRoot, pkgDir);
+    const skillsDir = path.join(projectRoot, '.agents', 'skills');
+    if (!fs.existsSync(skillsDir)) {
+      process.stderr.write(
+        'Skilling: warning — skill store missing at .agents/skills/. Run "npx skilling setup" after install.\n',
+      );
+    }
     process.stdout.write(
       `Skilling: ${seeded ? 'seeded' : 'found'} find-skills → .agents/skills/  run "npx skilling setup" to configure your IDE\n`,
     );

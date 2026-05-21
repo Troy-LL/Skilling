@@ -1,0 +1,24 @@
+tags:
+  - mcp
+  - server
+  - planning
+  - research
+  - api
+triggers:
+  - plan mcp server
+  - mcp server planning
+  - design mcp tools
+  - mcp api coverage
+  - mcp research phase
+  - mcp tool naming
+min_confidence: 0.45
+inject_mode_default: compact
+inject_brief: "Phase 1: MCP design principles, protocol/SDK docs, API mapping, tool naming plan."
+inject_sections:
+  - When to use
+  - MCP design principles
+  - Study MCP docs
+  - Study framework docs
+  - API research and tool plan
+  - Procedure
+  - Deliverables

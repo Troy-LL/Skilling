@@ -1,0 +1,22 @@
+tags:
+  - skills
+  - authoring
+  - skill-creation
+triggers:
+  - create a skill
+  - author a skill
+  - write a new skill
+  - draft a skill
+  - turn this into a skill
+  - write SKILL.md
+  - skill anatomy
+  - author and package a reusable skill
+  - package a skill
+  - skill creator
+inject_mode_default: compact
+inject_sections:
+  - Capture Intent
+  - Interview and Research
+  - Write the SKILL.md
+  - Test Cases
+inject_brief: "Author skills: capture intent, interview, write SKILL.md front matter and body, draft test prompts."

@@ -1,11 +1,13 @@
+tags:
+  - skilling
+  - workflow
+  - routing
 triggers:
   - begin task
   - skilling
   - end task
   - skill plan
-  - create a cursor hook
-  - cursor hook
-  - session start
-  - beforeSubmitPrompt
-  - auto-load context
   - skilling task
+  - session lifecycle
+inject_mode_default: summary
+inject_brief: "list → suggest_skills → begin_task(skill_id, 900) → end_task per stage. Discovery: find-skills @ 300."

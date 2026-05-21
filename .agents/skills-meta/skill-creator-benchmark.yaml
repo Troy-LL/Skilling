@@ -1,0 +1,18 @@
+tags:
+  - skills
+  - benchmark
+  - description
+  - triggering
+triggers:
+  - optimize skill description
+  - description optimization
+  - trigger accuracy
+  - blind comparison
+  - compare skill versions
+  - run_loop
+inject_mode_default: compact
+inject_sections:
+  - Description Optimization
+  - Blind Comparison
+  - Improve From Results
+inject_brief: "Benchmark skills: trigger eval queries, description optimization loop, optional blind A/B comparison."

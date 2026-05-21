@@ -2,6 +2,7 @@ tags:
   - discovery
   - skills
   - ecosystem
+  - routing
 triggers:
   - find a skill
   - find skills
@@ -9,3 +10,6 @@ triggers:
   - install skill
   - skills ecosystem
   - find and install a skill
+  - discover skills
+inject_mode_default: summary
+inject_brief: "Local: list + begin_task(skill_id). Ecosystem: npx skills find/add and skills.sh."

@@ -20,7 +20,18 @@ description: Helps users discover and install agent skills when they ask questio
 
 # Find Skills
 
-This skill helps you discover and install skills from the open agent skills ecosystem.
+This skill helps you discover and install skills from the open agent skills ecosystem **and** route to skills already installed locally via Skilling MCP.
+
+## Local installed skills (Skilling MCP)
+
+When the user needs a capability that may already be in the project catalog:
+
+1. Call MCP **`list`** (~280 tokens) for installed skill IDs under `.agents/skills/`.
+2. Optionally call **`suggest_skills`** for ranked hints (metadata only — never injects).
+3. Call **`begin_task(skill_id, token_budget=900)`** with an explicit id from the catalog.
+4. Call **`end_task`** before switching to another skill or topic.
+
+Use **`begin_task(find-skills, token_budget=300)`** when the user wants ecosystem discovery (this skill's procedures below). Do not load full skill files from disk when Skilling MCP is available.
 
 ## When to Use This Skill
 

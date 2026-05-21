@@ -3,6 +3,7 @@ import {
   MCP_DOMAIN_SCORE_CAP,
   PLAN_MIN_CONFIDENCE,
   SELECT_MIN_CONFIDENCE,
+  SUGGEST_DISPLAY_MIN,
 } from '../constants.js';
 import type { SkillFrontMatter } from '../parse.js';
 import type {
@@ -14,6 +15,10 @@ import type {
 } from './types.js';
 
 const TOKEN_MIN_LEN = 2;
+
+export function roundConfidence(normalized: number): number {
+  return Math.round(normalized * 1000) / 1000;
+}
 
 export function tokenize(text: string): string[] {
   return text
@@ -124,6 +129,34 @@ function buildRationale(meta: SkillFrontMatter, raw: number, tokens: Set<string>
   return `Selected "${meta.title}" (${meta.id}); matched ${hits.join(', ')}.`;
 }
 
+type ScoredCandidate = {
+  meta: SkillFrontMatter;
+  raw: number;
+  normalized: number;
+  confidence: number;
+  minConf: number;
+};
+
+function scorePool(
+  pool: SkillFrontMatter[],
+  tokens: Set<string>,
+  queryLower: string,
+  globalMin: number,
+  client?: string,
+): ScoredCandidate[] {
+  return pool
+    .map((meta) => {
+      const { raw, normalized } = scoreSkill(meta, tokens, queryLower, client);
+      const confidence = roundConfidence(normalized);
+      const minConf = roundConfidence(meta.min_confidence ?? globalMin);
+      return { meta, raw, normalized, confidence, minConf };
+    })
+    .sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      return a.meta.id.localeCompare(b.meta.id);
+    });
+}
+
 export function selectFromCandidates(
   candidates: SkillFrontMatter[],
   options: SelectOptions,
@@ -135,6 +168,9 @@ export function selectFromCandidates(
   const tokens = new Set(tokenize(combined));
   const maxTokens = options.select_max_tokens ?? options.token_budget;
   const globalMin = options.selectMinConfidence ?? SELECT_MIN_CONFIDENCE;
+  const displayMin = roundConfidence(SUGGEST_DISPLAY_MIN);
+  const selectMin = roundConfidence(globalMin);
+  const planMin = roundConfidence(options.planMinConfidence ?? PLAN_MIN_CONFIDENCE);
 
   let pool = injectableCandidates(candidates);
   if (maxTokens !== undefined) {
@@ -145,51 +181,51 @@ export function selectFromCandidates(
         confidence: 0,
         rationale: 'All candidates exceed select_max_tokens.',
         warnings: ['budget_exceeded'],
+        candidates: [],
       };
     }
     pool = within;
   }
 
-  const scored = pool
-    .map((meta) => {
-      const { raw, normalized } = scoreSkill(meta, tokens, queryLower, options.client);
-      const minConf = meta.min_confidence ?? globalMin;
-      return { meta, raw, normalized, minConf };
-    })
-    .filter((s) => s.normalized >= s.minConf)
-    .sort((a, b) => {
-      if (b.normalized !== a.normalized) return b.normalized - a.normalized;
-      if (maxTokens !== undefined) {
-        return (a.meta.token_estimate ?? 0) - (b.meta.token_estimate ?? 0);
-      }
-      return a.meta.id.localeCompare(b.meta.id);
-    });
-
+  const allScored = scorePool(pool, tokens, queryLower, globalMin, options.client);
+  const displayBand = allScored.filter((s) => s.confidence >= displayMin);
   const topK = Math.max(1, options.top_k ?? 1);
-  const ranked: { skill_id: string; confidence: number }[] = scored
-    .slice(0, topK)
-    .map((s) => ({ skill_id: s.meta.id, confidence: Math.round(s.normalized * 1000) / 1000 }));
+  const ranked = displayBand.slice(0, topK).map((s) => ({
+    skill_id: s.meta.id,
+    confidence: s.confidence,
+  }));
 
-  if (scored.length === 0) {
+  if (displayBand.length === 0) {
     return {
       skill_id: null,
       confidence: 0,
       rationale: 'No skill matched the given prompt.',
       warnings: ['low_confidence'],
+      candidates: [],
     };
   }
 
-  const top = scored[0]!;
+  const strong = displayBand.filter((s) => s.confidence >= s.minConf && s.confidence >= selectMin);
+  const top = strong[0] ?? displayBand[0]!;
+  const skill_id = strong.length > 0 ? top.meta.id : null;
+  const topConfidence = top.confidence;
+
   const warnings: string[] = [];
-  if (top.normalized < LOW_CONFIDENCE_THRESHOLD) warnings.push('low_confidence');
-  if (scored[1] && scored[1].normalized === top.normalized) warnings.push('tie_with_alternative');
+  if (topConfidence < roundConfidence(LOW_CONFIDENCE_THRESHOLD)) warnings.push('low_confidence');
+  if (displayBand[1] && displayBand[1].confidence === topConfidence) {
+    warnings.push('tie_with_alternative');
+  }
+
+  const weak_candidates = ranked.some((r) => r.confidence < planMin);
 
   return {
-    skill_id: top.meta.id,
-    confidence: Math.round(top.normalized * 1000) / 1000,
+    skill_id,
+    confidence: topConfidence,
     rationale: buildRationale(top.meta, top.raw, tokens),
     ...(warnings.length ? { warnings } : {}),
-    ...(topK > 1 && ranked.length > 1 ? { candidates: ranked, alternatives: ranked } : {}),
+    ...(weak_candidates ? { weak_candidates: true } : {}),
+    candidates: ranked,
+    ...(ranked.length > 1 ? { alternatives: ranked } : {}),
   };
 }
 
@@ -197,39 +233,36 @@ export function planFromCandidates(
   candidates: SkillFrontMatter[],
   options: PlanOptions,
 ): PlanResult {
-  const planMin = options.planMinConfidence ?? PLAN_MIN_CONFIDENCE;
+  const planMin = roundConfidence(options.planMinConfidence ?? PLAN_MIN_CONFIDENCE);
   const selectMin = options.selectMinConfidence ?? SELECT_MIN_CONFIDENCE;
+  const displayMin = roundConfidence(SUGGEST_DISPLAY_MIN);
 
   const selectResult = selectFromCandidates(candidates, {
     prompt: options.goal,
     context: options.context,
     top_k: options.max_skills ?? 5,
     selectMinConfidence: selectMin,
+    planMinConfidence: planMin,
   });
 
   const combined = [options.goal, options.context].filter(Boolean).join(' ');
   const queryLower = combined.toLowerCase();
   const tokens = new Set(tokenize(combined));
 
-  const ranked = injectableCandidates(candidates)
-    .map((meta) => {
-      const { normalized } = scoreSkill(meta, tokens, queryLower);
-      const minConf = Math.max(meta.min_confidence ?? selectMin, planMin);
-      return { meta, normalized, minConf };
-    })
-    .filter((s) => s.normalized >= s.minConf)
-    .sort((a, b) => b.normalized - a.normalized)
+  const allScored = scorePool(injectableCandidates(candidates), tokens, queryLower, selectMin);
+  const displayBand = allScored
+    .filter((s) => s.confidence >= displayMin)
     .slice(0, options.max_skills ?? 5);
 
-  const skills_needed = ranked.map((r) => r.meta.id);
-  const suggestions = ranked.map((r) => ({
+  const suggestions = displayBand.map((r) => ({
     skill_id: r.meta.id,
-    confidence: Math.round(r.normalized * 1000) / 1000,
+    confidence: r.confidence,
     summary: r.meta.summary,
+    included: r.confidence >= planMin && r.confidence >= r.minConf,
   }));
 
-  const topConfidence =
-    ranked.length > 0 ? Math.round(ranked[0]!.normalized * 1000) / 1000 : null;
+  const skills_needed = suggestions.filter((s) => s.included).map((s) => s.skill_id);
+  const topConfidence = suggestions.length > 0 ? suggestions[0]!.confidence : null;
 
   return {
     deprecated: true as const,
@@ -239,6 +272,7 @@ export function planFromCandidates(
     suggestions,
     estimated_tokens: 0,
     confidence: topConfidence ?? (selectResult.skill_id ? selectResult.confidence : null),
+    ...(selectResult.weak_candidates ? { weak_candidates: true } : {}),
   };
 }
 

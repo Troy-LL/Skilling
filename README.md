@@ -2,7 +2,7 @@
 
 **The right skill, at the right time — without filling your context window.**
 
-Skilling is an open-source MCP server that routes agent skills from your filesystem. It picks the best skill for each task, injects only what you need, and cleans up when the work is done. Built for Cursor, Claude Desktop, and any MCP-compatible host.
+**Skilling is an open-source MCP context engine** that shapes skill bodies to a token budget, injects them per stage, and evicts on `end_task`. Agents route via `list` + `suggest_skills`; Skilling injects with explicit `skill_id`. Built for Cursor, Claude Desktop, and any MCP-compatible host.
 
 ---
 
@@ -20,7 +20,7 @@ npm install skilling
 
 **Postinstall runs automatically:** seeds **`find-skills`** into `.agents/skills/` and runs **`skilling setup`** (writes MCP configs for detected IDEs with absolute paths). Re-installs are safe — existing `skilling` MCP entries are skipped unless you pass `--force`.
 
-Then **restart your IDE** so it loads the MCP server.
+Then **restart your IDE** so it loads the MCP server (required after upgrades — see [Migrating to v2](#migrating-to-v2)).
 
 ### After install (by IDE)
 
@@ -97,10 +97,10 @@ Agents work better with skills — structured playbooks for code review, MCP dev
 
 Skilling treats context as a budget:
 
-- **Select on summaries, not full files** — routing reads ~60 tokens per skill, not thousands.
-- **Inject with depth control** — summary, compact, section, or full body depending on what you need.
-- **Plan before you execute** — map which skills a multi-step goal needs before loading anything heavy.
-- **End tasks cleanly** — `end_task` evicts injected guidance so the next conversation stays focused.
+- **Catalog on demand** — `list` (~280 tokens) when you need installed skill IDs; disable static skill blocks in the host when MCP is enabled.
+- **Agent routes, Skilling injects** — `suggest_skills` for ranked hints; `begin_task(skill_id)` for shaped inject only.
+- **Inject with depth control** — summary (300), compact (900), or explicit `inject_mode`; 8 KB cap per inject.
+- **End tasks cleanly** — `end_task` evicts injected guidance before the next skill or topic.
 
 Research on skill-augmented agents (e.g. [Skill0](https://arxiv.org/abs/2604.02268)) shows filtered, summary-first routing can cut per-step token cost sharply versus naïve full injection — often with better task alignment. Skilling brings that discipline to inference-time MCP workflows.
 
@@ -109,19 +109,22 @@ Research on skill-augmented agents (e.g. [Skill0](https://arxiv.org/abs/2604.022
 ## How it works
 
 ```text
-Your prompt
+list                          ← tier-0 catalog (~280 tokens)
     │
     ▼
-skill_plan (optional)     ← Tier 1 only: which skills, in what order
+begin_task(find-skills, 300)  ← ecosystem discovery SOP (optional)
     │
     ▼
-begin_task                  ← match + shaped inject + session file
+Agent picks skill_id          ← optional suggest_skills for ranked hints
+    │
+    ▼
+begin_task(skill_id, 900)     ← shaped inject + session
     │
     ▼
 Agent works with skill body
     │
     ▼
-end_task                    ← cleanup + clear session
+end_task                        ← required before next skill/topic
 ```
 
 Skills live as folders under **`.agents/skills/<skill-id>/SKILL.md`**. Skilling-specific metadata (tags, triggers, inject defaults) can live in **`.agents/skills-meta/<skill-id>.yaml`** so ecosystem skills survive `npx skills update` without hand-editing upstream files.
@@ -132,12 +135,12 @@ Skills live as folders under **`.agents/skills/<skill-id>/SKILL.md`**. Skilling-
 
 | Capability | What you get |
 |------------|----------------|
-| **Heuristic routing** | Tag and trigger matching on Tier 1 metadata; no LLM required for selection |
-| **Token budgets** | Exclude skills whose bodies exceed your remaining context headroom |
+| **Explicit routing** | Agent picks `skill_id`; `suggest_skills` returns ranked hints (never injects) |
+| **Token budgets** | `token_budget` shapes inject only (300 discovery / 900 implement); 8 KB cap |
 | **Inject modes** | `summary` · `compact` · `sections` · `full` — escalate only when stuck |
-| **Task lifecycle** | `begin_task` / `end_task` with `.skilling/session.json` as source of truth |
+| **Task lifecycle** | `begin_task(skill_id)` / `end_task` with `.skilling/session.json` as source of truth |
 | **Metadata overlays** | Patch routing for community skills without touching their `SKILL.md` bodies |
-| **Open stack** | Node.js, stdio MCP, MIT-friendly deps — no API keys at install time |
+| **Chunked catalog** | Large skills split into stage-sized chunks that fit compact inject |
 
 ---
 
@@ -196,26 +199,39 @@ Details: [`docs/SKILLS_CATALOG.md`](docs/SKILLS_CATALOG.md)
 
 ## MCP tools
 
-Lifecycle tools (recommended for agents):
+Lifecycle tools (recommended):
 
 | Tool | Purpose |
 |------|---------|
-| `skill_plan` | Plan which skills a goal needs — summaries only, no bodies loaded |
-| `begin_task` | Select, inject, and open a task session |
-| `end_task` | Cleanup and clear the session |
-| `get_session` | Read the active episode (optional body) |
+| `list` | Tier-0 catalog — installed skill IDs (~280 tokens) |
+| `suggest_skills` | Ranked routing hints from metadata — never injects |
+| `begin_task` | **Requires `skill_id`** — shape, inject, open session |
+| `end_task` | Required cleanup before next skill or topic |
+| `get_session` | Read active episode (optional body; `stale` when TTL >80%) |
 
-Low-level tools (debugging and custom flows):
+Deprecated / debugging:
 
-| Tool | Aliases |
+| Tool | Notes |
 |------|---------|
-| `list` | `skill_list` |
-| `select` | `skill_select` |
-| `load` | `skill_inject` |
-| `cleanup` | `skill_cleanup` |
-| `health` | — |
+| `skill_plan` | Deprecated — use agent plan + `suggest_skills` |
+| `select` | Alias for `suggest_skills` |
+| `load` | Direct inject by id (`skill_inject`) |
+| `cleanup` | Correlation cleanup (`skill_cleanup`) |
+| `health` | Store check + `setup_hint` |
 
-`load` and `begin_task` support **`inject_mode`** (`summary` | `compact` | `sections` | `full`) and **`token_budget`** to auto-pick depth. See [`docs/CONTEXT_ENGINEERING.md`](docs/CONTEXT_ENGINEERING.md).
+`begin_task` and `load` support **`inject_mode`** and **`token_budget`** (inject shaping only). See [`docs/CONTEXT_ENGINEERING.md`](docs/CONTEXT_ENGINEERING.md).
+
+### Migrating to v2
+
+**2.0.0** breaking changes:
+
+- `begin_task` **requires `skill_id`** — call `list` or `suggest_skills` first
+- New **`suggest_skills`** tool; `select` is a deprecated alias
+- `token_budget` is **inject-only** (default 900; discovery phase 300)
+- `skill_plan` returns `suggestions` only (no plan steps)
+- Cursor hook auto-inject **off by default** — `SKILLING_HOOK_AUTO_INJECT=1` for legacy
+
+After `npm install skilling@2` or upgrading from source: **restart MCP** in every host, then run `npm run smoke`.
 
 ---
 

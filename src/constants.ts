@@ -26,10 +26,13 @@ export const MAX_CORRELATION_REGISTRY = 1024;
 /** Max characters for select prompt / goal inputs. */
 export const MAX_SELECT_INPUT_CHARS = 8_000;
 
-/** Minimum normalized confidence to return a skill_id (raised from 0.1 to reduce weak matches). */
+/** Minimum normalized confidence to appear in suggest_skills candidates list. */
+export const SUGGEST_DISPLAY_MIN = 0.15;
+
+/** Minimum normalized confidence for top skill_id in suggest_skills. */
 export const SELECT_MIN_CONFIDENCE = 0.25;
 
-/** Minimum normalized confidence to include a skill in skill_plan skills_needed. */
+/** Minimum normalized confidence for skill_plan skills_needed / included suggestions. */
 export const PLAN_MIN_CONFIDENCE = 0.35;
 
 /** Normalized score below this triggers low_confidence warning on select/begin_task. */

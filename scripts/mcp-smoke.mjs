@@ -15,7 +15,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const entry = path.join(repoRoot, 'dist', 'index.js');
 const skillRoot = path.join(repoRoot, '.agents', 'skills');
 const sessionFile = path.join(repoRoot, '.skilling', 'session.json');
-const compactSkillId = 'frontend-design';
+const compactSkillId = 'create-hook-templates';
 
 function report(step, payload) {
   const parts = [`Step ${step}: ok`];
@@ -72,8 +72,8 @@ try {
   const listRes = await client.callTool({ name: 'list', arguments: {} });
   if (listRes.isError) fail('list', listRes.content);
   const skills = listRes.structuredContent?.skills ?? [];
-  if (!skills.some((s) => s.id === 'mcp-builder')) {
-    fail('list', 'expected mcp-builder in .agents/skills');
+  if (!skills.some((s) => s.id === 'mcp-builder-implementation')) {
+    fail('list', 'expected mcp-builder-implementation in .agents/skills');
   }
   report('list', { count: skills.length });
 
@@ -111,6 +111,9 @@ try {
   const loaded = loadRes.structuredContent;
   if (loaded?.inject_mode !== 'compact' || !loaded?.body || !loaded?.token_estimate) {
     fail('load(compact)', loaded);
+  }
+  if (typeof loaded?.omitted_code_blocks !== 'number' || loaded.omitted_code_blocks < 1) {
+    fail('load(compact)', 'expected omitted_code_blocks metadata');
   }
   report('load(compact)', loaded);
 

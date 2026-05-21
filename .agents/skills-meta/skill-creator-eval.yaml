@@ -1,0 +1,21 @@
+tags:
+  - skills
+  - eval
+  - benchmark
+  - testing
+triggers:
+  - run skill evals
+  - test a skill
+  - skill evaluation
+  - grade assertions
+  - eval viewer
+  - improve the skill from feedback
+  - iteration loop
+inject_mode_default: compact
+inject_sections:
+  - Running Evals
+  - Spawn Runs
+  - Assertions and Grading
+  - Review Viewer
+  - Iteration Loop
+inject_brief: "Run evals: spawn with-skill and baseline runs, assertions, grading, benchmark viewer, iterate from feedback."

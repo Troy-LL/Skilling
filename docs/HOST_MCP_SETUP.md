@@ -121,6 +121,25 @@ Workflow: list → suggest_skills (optional) → begin_task(skill_id) → follow
 
 ---
 
+## Migrating from v1
+
+If you used Skilling **before 2.0.0**:
+
+| v1 | v2 |
+|---|---|
+| `begin_task(prompt)` auto-routed | **`begin_task(skill_id, …)`** required — call `list` or `suggest_skills` first |
+| `skill_plan` plan steps | Deprecated — agent plans; optional `skill_plan` returns `suggestions` only |
+| `select` for routing | **`suggest_skills`** (select is deprecated alias) |
+| Default budget 2048 | **900** implement, **300** discovery (`phase: plan\|discovery`) |
+| Cursor hook auto-injects | **Off by default** — `SKILLING_HOOK_AUTO_INJECT=1` for legacy |
+| Monolith skills (mcp-builder, etc.) | **Chunk ids** — e.g. `mcp-builder-implementation`, `create-hook-workflow` |
+
+After upgrading: **`npm install skilling@2`**, run **`npx skilling setup --force`**, **restart MCP**, then **`npm run smoke`**.
+
+Disable static `<available_skills>` blocks in your host system prompt when Skilling MCP is enabled — use **`list`** on demand instead.
+
+---
+
 ## Verify
 
 In your IDE or via CLI:

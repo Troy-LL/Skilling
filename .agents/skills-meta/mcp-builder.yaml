@@ -8,6 +8,7 @@ triggers:
   - create an mcp server
   - mcp server development
   - model context protocol server
-min_confidence: 0.45
-inject_mode_default: compact
-inject_brief: "Follow MCP builder phases: research, schema design, implementation, evaluation harness."
+  - model context protocol
+min_confidence: 0.35
+inject: false
+inject_brief: "Use chunk skills: mcp-builder-overview, mcp-builder-implementation, mcp-builder-evaluation."

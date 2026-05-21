@@ -25,6 +25,7 @@ export type SelectResult = {
   confidence: number;
   rationale: string;
   warnings?: string[];
+  weak_candidates?: boolean;
   candidates?: SelectAlternative[];
   /** @deprecated use candidates */
   alternatives?: SelectAlternative[];
@@ -34,6 +35,7 @@ export type PlanSuggestion = {
   skill_id: string;
   confidence: number;
   summary: string;
+  included: boolean;
   inject_token_estimate?: number;
 };
 
@@ -52,6 +54,7 @@ export type PlanResult = {
   suggestions: PlanSuggestion[];
   estimated_tokens: number;
   confidence: number | null;
+  weak_candidates?: boolean;
 };
 
 export interface SkillSelector {

@@ -114,6 +114,48 @@ describe('selectFromCandidates', () => {
     assert.ok(r.confidence > 0);
   });
 
+  it('returns candidates in weak band without skill_id when below select min', () => {
+    const weak: SkillFrontMatter = {
+      id: 'weak-skill',
+      title: 'Weak Match',
+      summary: 'Barely related',
+      tags: ['kubernetes'],
+      triggers: ['helm chart'],
+      min_confidence: 0.5,
+      token_estimate: 500,
+      inject: true,
+    };
+    const r = selectFromCandidates([weak], {
+      prompt: 'deploy kubernetes with helm charts and RBAC policies',
+    });
+    assert.equal(r.skill_id, null);
+    assert.ok(r.candidates && r.candidates.length >= 1);
+    assert.equal(r.weak_candidates, true);
+  });
+
+  it('uses rounded confidence consistently for low_confidence warning', () => {
+    const meta: SkillFrontMatter = {
+      id: 'edge-skill',
+      title: 'Edge Skill',
+      summary: 'Testing rounding',
+      tags: ['mcp', 'server'],
+      triggers: ['build an mcp server'],
+      min_confidence: 0.25,
+      token_estimate: 1000,
+      inject: true,
+    };
+    const r = selectFromCandidates([meta], {
+      prompt: 'build an mcp server with Python tools',
+    });
+    assert.equal(r.skill_id, 'edge-skill');
+    if (r.confidence >= 0.35) {
+      assert.ok(!r.warnings?.includes('low_confidence'));
+    } else {
+      assert.ok(r.warnings?.includes('low_confidence'));
+    }
+    assert.equal(r.confidence, Math.round(r.confidence * 1000) / 1000);
+  });
+
   it('returns null when nothing matches', () => {
     const r = selectFromCandidates(candidates, { prompt: 'xyzzy unrelated fluff' });
     assert.equal(r.skill_id, null);
@@ -186,18 +228,23 @@ describe('planFromCandidates', () => {
     assert.ok(p.estimated_tokens >= 0);
   });
 
-  it('omits weak matches from skills_needed', () => {
+  it('omits weak matches from skills_needed but may list them in suggestions', () => {
     const p = planFromCandidates(mcpCatalog, {
       goal: 'deploy kubernetes with helm charts and RBAC policies',
     });
     assert.deepEqual(p.skills_needed, []);
-    assert.equal(p.suggestions.length, 0);
+    for (const s of p.suggestions) {
+      assert.equal(s.included, false);
+    }
   });
 
-  it('includes strong matches only in skills_needed', () => {
+  it('marks included on suggestions at or above plan min', () => {
     const p = planFromCandidates(mcpCatalog, {
       goal: 'build a simple TypeScript CLI weather tool',
     });
+    const cli = p.suggestions.find((s) => s.skill_id === 'typescript-cli');
+    assert.ok(cli);
+    assert.equal(cli.included, true);
     assert.ok(p.skills_needed.includes('typescript-cli'));
     assert.ok(!p.skills_needed.includes('mcp-builder'));
     assert.ok(!p.skills_needed.includes('typescript-mcp-server-generator'));

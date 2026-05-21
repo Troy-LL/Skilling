@@ -1,21 +1,21 @@
 # Skill catalog — discover, install locally, route with Skilling
 
-Skilling **lists / selects / loads** skills under **`SKILL_ROOT`**. For this repo, the **canonical** root is **`.agents/skills/`**.
+Skilling **lists / suggests / injects** skills under **`SKILL_ROOT`**. For this repo, the **canonical** root is **`.agents/skills/`**.
 
-## Pipeline (recommended)
+## Pipeline (v2 recommended)
 
 ```text
-find-skills  →  npx skills add (repo root, no -g)  →  .agents/skills/<id>/
-             →  MCP SKILL_ROOT = <repo>/.agents/skills
-             →  skill_plan / begin_task / end_task
+list → begin_task(find-skills, 300) → agent picks skill_id
+→ begin_task(skill_id, 900) → end_task → next stage
 ```
 
 | Step | What | Where files live |
 |------|------|------------------|
-| 1. Discover | Agent follows **find-skills**; `npx skills find <query>` or [skills.sh](https://skills.sh/) | — |
-| 2. Install **locally** | `npm run skills:add -- <pkg>` or `npx skills add <pkg> -y` **from repo root** (no `-g`) | `<repo>/.agents/skills/<id>/` |
-| 3. Overlay (Skilling) | Add or edit **`.agents/skills-meta/<id>.yaml`** | Tags, triggers, `inject_mode_default` — survives skill updates |
-| 4. Route | MCP with `SKILL_ROOT` pointing at `.agents/skills` | Reads skills + merges overlays |
+| 1. Local catalog | MCP **`list`** for installed skill IDs (~280 tokens) | `.agents/skills/` |
+| 2. Discover ecosystem | **`begin_task(find-skills, 300)`** or `npx skills find` / [skills.sh](https://skills.sh/) | find-skills skill body |
+| 3. Route (optional) | **`suggest_skills`** for ranked hints — agent picks `skill_id` | Metadata only |
+| 4. Inject | **`begin_task(skill_id, token_budget)`** → **`end_task`** before next skill | Session in `.skilling/` |
+| 5. Overlay | **`.agents/skills-meta/<id>.yaml`** | Tags, triggers, inject defaults |
 
 ## Commands (Skilling repo root)
 
@@ -42,20 +42,19 @@ See **`docs/mcp-config.example.json`**.
 
 | Skill id | Role |
 |----------|------|
-| **find-skills** | Discover and install ecosystem skills |
-| **com-skilling-orchestrator** | `begin_task` / `end_task` / `skill_plan` workflow |
-| **mcp-builder**, **skill-creator**, **typescript-mcp-server-generator** | MCP and skill authoring (MCP-only — not general TypeScript scripts) |
-| **typescript-cli** | Node/TypeScript CLI tools and small scripts (not MCP servers) |
+| **find-skills** | Discover ecosystem skills + local `list` routing SOP |
+| **com-skilling-orchestrator** | v2 lifecycle SOP (`list`, `suggest_skills`, `begin_task`, `end_task`) |
+| **mcp-builder-*** | MCP server work (chunked: overview / implementation / evaluation) |
+| **skill-creator-*** | Skill authoring (chunked: authoring / eval / benchmark) |
+| **create-hook-*** | Git hooks (chunked: workflow / templates / testing) |
+| **typescript-cli** | Node/TypeScript CLI tools (not MCP servers) |
 | **frontend-design** | Distinctive web UI / React components |
-| **create-hook**, **create-rule** | Git hooks (create-hook) and Cursor rules (create-rule); use **com-skilling-orchestrator** for Cursor MCP lifecycle hooks |
+| **create-rule** | Cursor rules |
+| **typescript-mcp-server-generator** | TypeScript MCP server scaffold |
+
+Legacy monolith ids (`mcp-builder`, `skill-creator`, `create-hook`) may remain for compatibility; prefer **chunk ids** for staged `begin_task`.
 
 ## Routing accuracy
-
-The bundled catalog is **meta/MCP-heavy by design**. For general coding tasks:
-
-- **`typescript-cli`** — CLI tools and Node scripts
-- **`frontend-design`** — UI/card/widget work
-- **`find-skills`** — discover domain skills from [skills.sh](https://skills.sh/) when nothing bundled fits
 
 Tune routing without editing skill bodies via **`.agents/skills-meta/<id>.yaml`**:
 
@@ -63,24 +62,29 @@ Tune routing without editing skill bodies via **`.agents/skills-meta/<id>.yaml`*
 |---------------|---------|
 | `triggers` | Phrases that strongly signal this skill |
 | `tags` | Token overlap for heuristic matching |
-| `min_confidence` | Per-skill floor (e.g. `0.45` for MCP skills) |
-| `inject_mode_default` | Default inject tier (`compact` recommended for large skills) |
+| `inject_brief` | Summary-tier inject bullets |
+| `inject_sections` | Headings for section/compact mode (must match `##` in body) |
+| `min_confidence` | Per-skill floor (e.g. `0.35` for MCP skills) |
+| `inject_mode_default` | Default inject tier at budget ≥900 |
 
 Selector thresholds (env overrides):
 
-- **`SKILLING_SELECT_MIN_CONFIDENCE`** — default `0.25` (minimum to return any skill)
-- **`SKILLING_PLAN_MIN_CONFIDENCE`** — default `0.35` (minimum for `skill_plan` `skills_needed`)
+- **`SKILLING_SELECT_MIN_CONFIDENCE`** — default `0.25` (minimum for top `skill_id` in `suggest_skills`)
+- **`SKILLING_SUGGEST_DISPLAY_MIN`** — default `0.15` (minimum to appear in ranked `candidates`)
+- **`SKILLING_PLAN_MIN_CONFIDENCE`** — default `0.35` (minimum for `skill_plan` `skills_needed` / `included: true`)
 
 MCP-tagged skills require **mcp** or an exact MCP trigger in the query; otherwise their score is capped to avoid false positives on generic TypeScript prompts.
 
+## Chunking (large skills)
+
+Skills over ~4k raw tokens or that truncate at 8 KB in compact are split into **stage chunks** — each chunk ≤8 KB so `begin_task(chunk_id, 900)` injects without `truncated: true`. See [`docs/CONTEXT_ENGINEERING.md`](CONTEXT_ENGINEERING.md).
+
 ## Notes
 
-- **`.agents/skills-meta/`** holds Skilling routing metadata for ecosystem skills; commit these files in the repo.
+- **`.agents/skills-meta/`** holds Skilling routing metadata; commit these files in the repo.
 - **`com-skilling-orchestrator`** is first-party; not managed by `npx skills update`.
-- Ecosystem front matter (`name` / `description`) is normalized to **`id`**, **`title`**, **`summary`** when skills are installed via `npx skills add`.
 - **`token_estimate`** is computed from the skill **body** when not set explicitly.
 - Folder name **must** match YAML **`id`**.
-- Do not use **`npx skills add -g`** when curating this project unless you also copy into `.agents/skills` here.
 
 ## Regression
 

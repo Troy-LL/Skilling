@@ -1,0 +1,23 @@
+tags:
+  - mcp
+  - server
+  - testing
+  - evaluation
+  - qa
+triggers:
+  - test mcp server
+  - mcp server evaluation
+  - mcp eval harness
+  - review mcp server
+  - mcp qa pairs
+  - mcp inspector
+min_confidence: 0.45
+inject_mode_default: compact
+inject_brief: "Phase 3–4: code review, Inspector test, 10 independent read-only eval questions with verified answers."
+inject_sections:
+  - When to use
+  - Code quality review
+  - Build and test
+  - Create evaluations
+  - Procedure
+  - Output format

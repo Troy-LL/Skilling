@@ -12,3 +12,7 @@ triggers:
   - cursor rule for
 inject_mode_default: compact
 inject_brief: "Author Cursor rules (.mdc) with clear scope, globs, and actionable guidance."
+inject_sections:
+  - "When to Create a Rule"
+  - "Rule Creation Process"
+  - "Rule Structure: The Contrastive Pattern"

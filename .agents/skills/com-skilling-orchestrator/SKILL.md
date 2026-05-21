@@ -6,7 +6,7 @@ tags:
   - skilling
   - workflow
   - routing
-version: 2.0.0
+version: 2.1.0
 triggers:
   - begin task
   - skilling
@@ -42,6 +42,22 @@ Pass explicit `inject_mode` to override. Compact omits code blocks — use `full
 5. Do **not** rely on silent auto-routing for build tasks.
 
 If **`.skilling/active-body.md`** exists, follow it for this turn. Otherwise call **`get_session`** — if `active: false`, start step 4 with an explicit `skill_id`.
+
+## Staged chunks (large skills)
+
+Monster skills are split into stage-specific chunk ids. Route one chunk per stage:
+
+```text
+mcp-builder-overview → mcp-builder-implementation → mcp-builder-evaluation
+skill-creator-authoring → skill-creator-eval → skill-creator-benchmark
+create-hook-workflow → create-hook-templates → create-hook-testing
+```
+
+Example: user asks to build an MCP server — `begin_task(mcp-builder-overview, 900)` → work → `end_task` → `begin_task(mcp-builder-implementation, 900)` → … Legacy monolith ids (`mcp-builder`, `skill-creator`, `create-hook`) are catalog-only; use chunk ids for inject.
+
+## Session staleness
+
+**`get_session`** returns **`stale: true`** when TTL is past 80% elapsed. Refresh with **`begin_task(skill_id)`** or **`end_task`** before switching topics.
 
 ## User-facing presentation
 

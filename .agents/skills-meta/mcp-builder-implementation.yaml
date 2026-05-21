@@ -1,0 +1,27 @@
+tags:
+  - mcp
+  - server
+  - implementation
+  - typescript
+  - python
+triggers:
+  - build an mcp server
+  - create an mcp server
+  - mcp server development
+  - model context protocol server
+  - implement mcp server
+  - mcp server implementation
+  - build mcp tools
+  - register mcp tools
+  - mcp tool schemas
+  - mcp zod schema
+min_confidence: 0.35
+inject_mode_default: compact
+inject_brief: "Phase 2: scaffold project, shared API client, Zod/Pydantic schemas, tool registration, annotations."
+inject_sections:
+  - When to use
+  - Project structure
+  - Core infrastructure
+  - Implement tools
+  - Procedure
+  - Quality checklist

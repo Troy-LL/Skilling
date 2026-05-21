@@ -164,6 +164,7 @@ function enrichSuggestResult(
     rationale: result.rationale,
     candidates,
     ...(result.warnings?.length ? { warnings: result.warnings } : {}),
+    ...(result.weak_candidates ? { weak_candidates: true } : {}),
   };
 }
 

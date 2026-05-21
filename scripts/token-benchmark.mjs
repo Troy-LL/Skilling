@@ -37,7 +37,7 @@ const SCENARIOS = [
   {
     id: 'create_hook',
     prompt: 'create a cursor hook that fires at session start to auto-load context',
-    expected_skill_id: 'com-skilling-orchestrator',
+    expected_skill_id: 'create-hook-workflow',
   },
   {
     id: 'create_rule',
@@ -47,12 +47,12 @@ const SCENARIOS = [
   {
     id: 'mcp_builder',
     prompt: 'build an mcp server with Python tools, evaluation harness, and testing',
-    expected_skill_id: 'mcp-builder',
+    expected_skill_id: 'mcp-builder-implementation',
   },
   {
     id: 'skill_creator',
     prompt: 'author and package a reusable skill for deployment automation',
-    expected_skill_id: 'skill-creator',
+    expected_skill_id: 'skill-creator-authoring',
   },
   {
     id: 'ts_mcp_generator',
@@ -414,7 +414,18 @@ for (const n of steps) {
   );
 }
 
-// ── Section 2c: Staged pipeline (list → discovery → implement) ───────────────
+const CHUNK_SKILLS = [
+  'mcp-builder-overview',
+  'mcp-builder-implementation',
+  'mcp-builder-evaluation',
+  'skill-creator-authoring',
+  'skill-creator-eval',
+  'skill-creator-benchmark',
+  'create-hook-workflow',
+  'create-hook-templates',
+  'create-hook-testing',
+];
+
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('  Section 2c: Staged Pipeline (shaped inject estimates)');
 console.log('  list + begin_task(find-skills,300) + begin_task(impl,900) + end_task');
@@ -430,6 +441,20 @@ console.log(`  begin_task(find-skills, 300):    ${formatNum(discoveryTokens)} to
 console.log(`  begin_task(impl skill, 900):     ${formatNum(implementTokens)} tokens (compact avg)`);
 console.log(`  Staged total (one discovery + one implement stage): ${formatNum(stagedTotal)} tokens`);
 console.log(`  Naive baseline (all bodies):     ${formatNum(totalFull)} tokens\n`);
+
+console.log('  Per-chunk compact inject (≤8 KB cap):');
+for (const chunkId of CHUNK_SKILLS) {
+  const entry = skillData.find((s) => s.id === chunkId);
+  if (!entry) continue;
+  const { body } = loadSkillBody(SKILL_ROOT, chunkId, SKILLS_META_DIR);
+  const shaped = shapeSkillBody(body, DEFAULT_CAP, {
+    mode: 'compact',
+    meta: { title: entry.meta.title, summary: entry.meta.summary },
+  });
+  const truncated = shaped.truncated ? ' TRUNCATED' : '';
+  console.log(`    ${chunkId.padEnd(32)} ${formatNum(shaped.token_estimate)} tokens${truncated}`);
+}
+console.log('');
 
 // ── Section 4: Selection-Only Cost (Tier 1 vs Tier 2 selection) ──────────────
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

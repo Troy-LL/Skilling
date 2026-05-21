@@ -1,0 +1,18 @@
+tags:
+  - hooks
+  - templates
+  - claude-code
+  - automation
+triggers:
+  - hook template
+  - hook script example
+  - settings.json hooks
+  - posttooluse hook
+  - pretooluse hook
+  - hook configuration json
+inject_mode_default: full
+inject_sections:
+  - Hook Templates
+  - Quick reference
+inject_brief: "Copy hook script templates and settings.json registration patterns; use full inject when code blocks matter."
+min_confidence: 0.35

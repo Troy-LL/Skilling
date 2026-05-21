@@ -1,0 +1,20 @@
+tags:
+  - hooks
+  - git
+  - automation
+  - claude-code
+triggers:
+  - create a git hook
+  - create a claude hook
+  - create a cursor hook
+  - cursor hook
+  - add a pre-commit hook
+  - set up a hook
+  - configure hooks
+  - analyze hooks for this project
+inject_mode_default: compact
+inject_sections:
+  - Your Task
+  - Your Workflow
+inject_brief: "Analyze repo tooling, suggest hooks, configure scope/matchers/Claude integration, then hand off to templates and testing chunks."
+min_confidence: 0.4

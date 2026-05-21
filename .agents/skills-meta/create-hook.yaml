@@ -1,3 +1,4 @@
+inject: false
 tags:
   - hooks
   - git

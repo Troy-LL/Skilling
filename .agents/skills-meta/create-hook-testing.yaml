@@ -1,0 +1,17 @@
+tags:
+  - hooks
+  - testing
+  - validation
+  - troubleshooting
+triggers:
+  - test hook
+  - validate hook
+  - hook not firing
+  - hook troubleshooting
+  - debug hook
+inject_mode_default: compact
+inject_sections:
+  - Testing procedure
+  - Success criteria
+inject_brief: "Run happy/sad path tests, verify stdin/JSON/exit codes, troubleshoot registration and shell profile issues."
+min_confidence: 0.35
