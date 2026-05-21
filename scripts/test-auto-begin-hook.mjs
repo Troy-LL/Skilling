@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const hookScript = path.join(repoRoot, 'hooks', 'Skilling-auto-begin.mjs');
+const hookScript = path.join(repoRoot, 'hooks', 'skilling-auto-begin.mjs');
 const sessionFile = path.join(repoRoot, '.skilling', 'session.json');
 const bodyFile = path.join(repoRoot, '.skilling', 'active-body.md');
 
