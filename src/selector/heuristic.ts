@@ -272,7 +272,6 @@ export function planFromCandidates(
     suggestions,
     estimated_tokens: 0,
     confidence: topConfidence ?? (selectResult.skill_id ? selectResult.confidence : null),
-    ...(selectResult.weak_candidates ? { weak_candidates: true } : {}),
   };
 }
 

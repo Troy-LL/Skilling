@@ -90,6 +90,9 @@ try {
   if (suggestRes.isError) fail('suggest_skills', suggestRes.content);
   const suggested = suggestRes.structuredContent;
   if (!suggested?.candidates?.length) fail('suggest_skills', suggested);
+  if (suggested.weak_candidates !== undefined) {
+    fail('suggest_skills', 'weak_candidates should not be returned');
+  }
   report('suggest_skills', {
     skill_id: suggested.skill_id,
     confidence: suggested.confidence,
@@ -131,7 +134,18 @@ try {
   if (!planRes.structuredContent?.deprecated) {
     fail('skill_plan', 'missing deprecated flag');
   }
-  report('skill_plan', { count: planRes.structuredContent.suggestions.length });
+  const planSuggestions = planRes.structuredContent.suggestions;
+  const planSum = planSuggestions.reduce(
+    (sum, s) => sum + (s.inject_token_estimate ?? 0),
+    0,
+  );
+  if (planRes.structuredContent.estimated_tokens > planSum) {
+    fail('skill_plan', 'estimated_tokens must not sum all suggestions');
+  }
+  if (planRes.structuredContent.weak_candidates !== undefined) {
+    fail('skill_plan', 'weak_candidates should not be returned; use included on suggestions');
+  }
+  report('skill_plan', { count: planSuggestions.length });
 
   const beginRes = await client.callTool({
     name: 'begin_task',

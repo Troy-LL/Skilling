@@ -1,6 +1,6 @@
 {
   "name": "skilling",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "MCP context engine: shape, inject, and evict agent skills with tiered token budgets.",
   "author": {
     "name": "Skilling Contributors"

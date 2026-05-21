@@ -24,6 +24,11 @@ npm run pack:check
 npm publish --access public
 ```
 
+### 2.1.1 release (routing polish)
+
+- **`suggest_skills`**: no longer returns `weak_candidates` — use `candidates[]` and pick from `list` / plan
+- **`skill_plan.estimated_tokens`**: primary included match only (one stage); budget per skill via `suggestions[].inject_token_estimate`
+
 ### 2.1.0 release (catalog chunking + routing polish)
 
 Ship after merge when ready:

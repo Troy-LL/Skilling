@@ -164,7 +164,6 @@ function enrichSuggestResult(
     rationale: result.rationale,
     candidates,
     ...(result.warnings?.length ? { warnings: result.warnings } : {}),
-    ...(result.weak_candidates ? { weak_candidates: true } : {}),
   };
 }
 
@@ -364,7 +363,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'skill_plan',
     {
       description:
-        'DEPRECATED — prefer agent planning + suggest_skills + begin_task(skill_id). Returns ranked suggestions and shaped inject token estimates only (no plan steps, no inject).',
+        'DEPRECATED — prefer agent planning + suggest_skills + begin_task(skill_id). Returns ranked suggestions with per-suggestion inject_token_estimate; estimated_tokens is the primary included match only (one stage, not a sum).',
       inputSchema: {
         goal: z.string().describe('High-level task or goal'),
         context: z.string().optional(),
@@ -373,7 +372,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
           .number()
           .int()
           .optional()
-          .describe('Budget for shaped inject estimates (default 900)'),
+          .describe('Budget for shaped inject estimates (default 900); per-suggestion inject_token_estimate uses this'),
       },
       annotations: {
         readOnlyHint: true,
@@ -404,14 +403,16 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
             budget,
           ),
         }));
-        const estimated_tokens = suggestions.reduce(
-          (sum, s) => sum + (s.inject_token_estimate ?? 0),
-          0,
-        );
+        const primary =
+          suggestions.find((s) => s.included) ?? suggestions[0];
+        const estimated_tokens = primary?.inject_token_estimate ?? 0;
         logToolOk('skill_plan', { count: suggestions.length });
         return toolOk({
-          ...plan,
+          deprecated: plan.deprecated,
+          message: plan.message,
+          skills_needed: plan.skills_needed,
           suggestions,
+          confidence: plan.confidence,
           estimated_tokens,
         } as unknown as Record<string, unknown>);
       } catch (e) {

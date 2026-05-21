@@ -1,6 +1,6 @@
 {
   "name": "skilling",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Skilling MCP — portable context engine (list / suggest_skills / begin_task / end_task)",
   "type": "module",
   "main": "dist/index.js",
