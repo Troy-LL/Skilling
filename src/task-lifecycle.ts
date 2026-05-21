@@ -12,7 +12,9 @@ import { resolveInjectMode, shapeSkillBody, type InjectMode, type ShapeBodyResul
 import {
   clearSession,
   isSessionActive,
+  readActiveBody,
   readSession,
+  type SkillSession,
   type SkillSessionWrite,
   writeActiveBody,
   writeSession,
@@ -73,7 +75,7 @@ export type GetSessionOptions = {
 };
 
 export type GetSessionResult =
-  | { active: false }
+  | { active: false; expired?: boolean }
   | {
       active: true;
       skill_id: string;
@@ -142,6 +144,20 @@ function readShapedSkillBody(
   options?: { inject_mode?: InjectMode; token_budget?: number },
 ): string {
   return loadAndShapeSkill(skillRoot, skillId, config, options).shaped.body;
+}
+
+function resolveSessionBody(
+  skillRoot: string,
+  repoRoot: string,
+  session: SkillSession,
+  config: SkillPilotConfig,
+): string {
+  const fromBridge = readActiveBody(repoRoot, session.skill_id);
+  if (fromBridge !== null) return fromBridge;
+  return readShapedSkillBody(skillRoot, session.skill_id, config, {
+    inject_mode: session.inject_mode,
+    token_budget: session.token_budget,
+  });
 }
 
 /** Process-local correlation count (tests / diagnostics). */
@@ -229,9 +245,9 @@ export function beginTask(
     if (prev?.correlation_id) {
       if (isSessionActive(prev)) {
         runCleanup(prev.correlation_id);
+        previous_ended = true;
       }
       clearSession(repoRoot);
-      previous_ended = true;
     }
   }
 
@@ -273,6 +289,7 @@ export function beginTask(
   });
   const summary = buildSessionSummary(episode.title, selectExtras.rationale);
 
+  const tokenBudget = input.token_budget ?? config.defaultTokenBudget;
   const sessionPayload: SkillSessionWrite = {
     skill_id: episode.skill_id,
     title: episode.title,
@@ -284,6 +301,8 @@ export function beginTask(
     ttl_ms: episode.ttl_ms,
     started_at: new Date().toISOString(),
     prompt_fingerprint: promptFingerprint(trimmedPrompt || input.goal!.trim(), input.goal),
+    inject_mode: episode.inject_mode,
+    token_budget: tokenBudget,
     ...(input.phase?.trim() ? { phase: input.phase.trim() } : {}),
   };
   writeSession(repoRoot, sessionPayload);
@@ -340,7 +359,7 @@ export function getSession(
       runCleanup(session.correlation_id);
     }
     clearSession(repoRoot);
-    return { active: false };
+    return { active: false, expired: true };
   }
 
   const includeSummary = options?.include_summary !== false;
@@ -367,7 +386,7 @@ export function getSession(
   if (includeBody) {
     return {
       ...base,
-      body: readShapedSkillBody(skillRoot, session.skill_id, config),
+      body: resolveSessionBody(skillRoot, repoRoot, session, config),
     };
   }
 

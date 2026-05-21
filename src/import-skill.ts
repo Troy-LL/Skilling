@@ -4,7 +4,12 @@ import { parse as parseYaml } from 'yaml';
 import { SkillPilotError } from './errors.js';
 import { parseSkillMarkdown } from './parse.js';
 import type { SkillFrontMatter } from './parse.js';
-import { assertPathUnderRoot, buildIndex, invalidateIndexCache } from './store.js';
+import {
+  assertPathUnderRoot,
+  buildIndex,
+  invalidateIndexCache,
+  resolveSkillRoot,
+} from './store.js';
 import { isValidSkillId } from './validate.js';
 
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
@@ -14,6 +19,8 @@ export type ImportSkillOptions = {
   id?: string;
   /** Optional audit field (skill-rules §10). */
   source?: string;
+  /** Workspace/repo root — allows import from `<repo>/.agents/skills` into another SKILL_ROOT. */
+  repo_root?: string;
 };
 
 export type ImportSkillResult = {
@@ -164,16 +171,72 @@ export function resolveAgentsSkillPath(repoRoot: string, agentsFolder: string): 
   return source;
 }
 
+function resolveAgentsSkillsRootNear(skillRoot: string): string | null {
+  const resolved = path.resolve(skillRoot);
+  const parent = path.dirname(resolved);
+  if (path.basename(resolved) === 'skills' && path.basename(parent) === '.agents') {
+    return fs.realpathSync.native(resolved);
+  }
+  const agentsSkills = path.join(parent, '.agents', 'skills');
+  if (fs.existsSync(agentsSkills) && fs.statSync(agentsSkills).isDirectory()) {
+    return fs.realpathSync.native(agentsSkills);
+  }
+  return null;
+}
+
+/** Source must lie under SKILL_ROOT or repo `.agents/skills` when present. */
+export function assertImportSourceAllowed(
+  sourceSkillMd: string,
+  skillRoot: string,
+  repoRoot?: string,
+): string {
+  const sourceAbs = path.resolve(sourceSkillMd);
+  if (!fs.existsSync(sourceAbs)) {
+    throw new SkillPilotError('VALIDATION_ERROR', `Source not found: ${sourceAbs}`);
+  }
+  const sourceReal = fs.realpathSync.native(sourceAbs);
+  const allowedRoots: string[] = [];
+  try {
+    allowedRoots.push(resolveSkillRoot(skillRoot));
+  } catch {
+    allowedRoots.push(fs.realpathSync.native(path.resolve(skillRoot)));
+  }
+  const agentsRoot = resolveAgentsSkillsRootNear(skillRoot);
+  if (agentsRoot) allowedRoots.push(agentsRoot);
+  if (repoRoot) {
+    const repoAgents = path.join(path.resolve(repoRoot), '.agents', 'skills');
+    if (fs.existsSync(repoAgents) && fs.statSync(repoAgents).isDirectory()) {
+      allowedRoots.push(fs.realpathSync.native(repoAgents));
+    }
+  }
+
+  for (const root of allowedRoots) {
+    try {
+      assertPathUnderRoot(root, sourceReal);
+      return sourceReal;
+    } catch {
+      /* try next root */
+    }
+  }
+  throw new SkillPilotError(
+    'PATH_ESCAPE',
+    'Import source must be under SKILL_ROOT or .agents/skills',
+  );
+}
+
 export function importSkillFromPath(
   sourceSkillMd: string,
   skillRoot: string,
   options: ImportSkillOptions = {},
 ): ImportSkillResult {
-  const sourceAbs = path.resolve(sourceSkillMd);
-  if (!fs.existsSync(sourceAbs)) {
-    throw new Error(`Source not found: ${sourceAbs}`);
-  }
+  const sourceAbs = assertImportSourceAllowed(sourceSkillMd, skillRoot, options.repo_root);
   const folderName = path.basename(path.dirname(sourceAbs));
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(folderName)) {
+    throw new SkillPilotError(
+      'VALIDATION_ERROR',
+      `Source folder name must match skill-rules §2: ${folderName}`,
+    );
+  }
   const { meta, body, warnings } = readAndNormalizeSource(sourceAbs, folderName, options);
   const destDir = path.join(path.resolve(skillRoot), meta.id);
   const destFile = path.join(destDir, 'SKILL.md');
@@ -204,6 +267,7 @@ export function importSkillFromAgents(
   const source = resolveAgentsSkillPath(repoRoot, folder);
   return importSkillFromPath(source, skillRoot, {
     ...options,
+    repo_root: options.repo_root ?? repoRoot,
     source: options.source ?? `agents:${folder}`,
   });
 }

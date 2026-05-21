@@ -135,6 +135,7 @@ describe('task-lifecycle', () => {
       fs.writeFileSync(resolveActiveBodyPath(repo), 'stale body', 'utf8');
       const session = getSession(agentsSkills, repo, config);
       assert.equal(session.active, false);
+      assert.equal(session.expired, true);
       assert.equal(readSession(repo), null);
       assert.equal(fs.existsSync(resolveSessionPath(repo)), false);
       assert.equal(fs.existsSync(resolveActiveBodyPath(repo)), false);
@@ -211,8 +212,33 @@ describe('task-lifecycle', () => {
       const result = beginTask(agentsSkills, repo, config, {
         prompt: 'find a skill for linting',
       });
-      assert.equal(result.previous_ended, true);
+      assert.equal(result.previous_ended, false);
       assert.ok(result.skill_id);
+      endTask(repo);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('getSession include_body matches begin_task inject_mode and active-body bridge', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-task-inject-'));
+    try {
+      const begun = beginTask(agentsSkills, repo, config, {
+        prompt: 'find a skill for deployment',
+        skill_id: 'find-skills',
+        inject_mode: 'summary',
+      });
+      assert.equal(begun.inject_mode, 'summary');
+      const session = readSession(repo);
+      assert.equal(session?.inject_mode, 'summary');
+
+      const bridge = fs.readFileSync(resolveActiveBodyPath(repo), 'utf8');
+      const viaGet = getSession(agentsSkills, repo, config, { include_body: true });
+      assert.equal(viaGet.active, true);
+      if (viaGet.active) {
+        assert.equal(viaGet.body, begun.body);
+        assert.ok(bridge.includes(begun.body.slice(0, 40)));
+      }
       endTask(repo);
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });

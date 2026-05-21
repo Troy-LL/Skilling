@@ -12,6 +12,7 @@ import {
   type SkillSession,
   writeSession,
   writeActiveBody,
+  readActiveBody,
   resolveActiveBodyPath,
 } from './session-store.js';
 
@@ -90,6 +91,17 @@ describe('session-store', () => {
       ),
       false,
     );
+  });
+
+  it('readActiveBody strips header and checks skill_id', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-read-body-'));
+    try {
+      writeActiveBody(repo, 'test-skill', '# Procedure\n\nDo work.');
+      assert.equal(readActiveBody(repo, 'test-skill'), '# Procedure\n\nDo work.');
+      assert.equal(readActiveBody(repo, 'other-skill'), null);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   it('writeActiveBody creates bridge file', () => {

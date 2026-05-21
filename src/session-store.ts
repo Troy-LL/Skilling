@@ -1,7 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { InjectMode } from './shape-body.js';
+import { validateInjectMode } from './validate.js';
 
 export const SESSION_SCHEMA_VERSION = 2;
+
+const ACTIVE_BODY_HEADER_RE =
+  /^<!-- SkillPilot ephemeral bridge[^>]*skill_id:\s*([^\s]+)\s*-->\s*\n\n/;
 
 /** Fields required when writing a new session (v2). */
 export type SkillSessionWrite = {
@@ -16,6 +21,10 @@ export type SkillSessionWrite = {
   started_at: string;
   phase?: string;
   prompt_fingerprint?: string;
+  /** Resolved inject tier used for active-body.md (get_session include_body). */
+  inject_mode?: InjectMode;
+  /** Token budget used when inject_mode was resolved (heuristic tiers). */
+  token_budget?: number;
 };
 
 export type SkillSession = SkillSessionWrite & {
@@ -43,6 +52,13 @@ function normalizeV1(data: Record<string, unknown>): SkillSession | null {
     typeof data.rationale === 'string' ? data.rationale : `Active skill: ${skill_id}`;
   const summary =
     typeof data.summary === 'string' ? data.summary : `Using ${title} — ${rationale}`;
+  const inject_mode = parseStoredInjectMode(data['inject_mode']);
+  const token_budget =
+    typeof data['token_budget'] === 'number' &&
+    Number.isInteger(data['token_budget']) &&
+    data['token_budget'] > 0
+      ? data['token_budget']
+      : undefined;
   return {
     version: SESSION_SCHEMA_VERSION,
     skill_id,
@@ -58,7 +74,18 @@ function normalizeV1(data: Record<string, unknown>): SkillSession | null {
     ...(typeof data.prompt_fingerprint === 'string'
       ? { prompt_fingerprint: data.prompt_fingerprint }
       : {}),
+    ...(inject_mode ? { inject_mode } : {}),
+    ...(token_budget !== undefined ? { token_budget } : {}),
   };
+}
+
+function parseStoredInjectMode(value: unknown): InjectMode | undefined {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return validateInjectMode(value);
+  } catch {
+    return undefined;
+  }
 }
 
 export function readSession(repoRoot: string): SkillSession | null {
@@ -102,6 +129,22 @@ export function writeActiveBody(repoRoot: string, skillId: string, body: string)
 export function clearActiveBody(repoRoot: string): void {
   const file = resolveActiveBodyPath(repoRoot);
   if (fs.existsSync(file)) fs.unlinkSync(file);
+}
+
+/**
+ * Read shaped body from active-body.md (strip bridge header).
+ * Returns null if missing or skill_id in header does not match.
+ */
+export function readActiveBody(repoRoot: string, skillId: string): string | null {
+  const file = resolveActiveBodyPath(repoRoot);
+  if (!fs.existsSync(file)) return null;
+  const text = fs.readFileSync(file, 'utf8');
+  const m = text.match(ACTIVE_BODY_HEADER_RE);
+  if (m) {
+    if (m[1] !== skillId) return null;
+    return text.slice(m[0].length);
+  }
+  return text.trim().length > 0 ? text : null;
 }
 
 /** True when started_at + ttl_ms is still in the future. */
