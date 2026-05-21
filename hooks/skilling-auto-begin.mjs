@@ -144,6 +144,11 @@ async function main() {
       }
     }
 
+    if (process.env.SKILLING_HOOK_AUTO_INJECT !== '1') {
+      log('auto-inject disabled (set SKILLING_HOOK_AUTO_INJECT=1 to enable legacy routing)');
+      break;
+    }
+
     const payload = runBeginTask(serverRoot, skillRoot, prompt);
     // begin_task (MCP) also writes active-body.md under repo root derived from skill root;
     // write here so the workspace-root bridge exists when hook workspace matches skill repo.

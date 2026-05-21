@@ -13,26 +13,21 @@ CI runs `npm ci`, `npm test`, and `npm run smoke` on pull requests.
 
 0. Server `instructions` + `listPrompts` / `getPrompt(skilling_workflow)`
 1. `list` / `skill_list`
-2. `select` (heuristic)
+2. `suggest_skills` + `select` alias
 3. `load` with `inject_mode: compact`
-4. `skill_plan`
-5. `begin_task` (heuristic prompt → `find-skills`)
+4. `skill_plan` (deprecated suggestions)
+5. `begin_task(skill_id: find-skills, token_budget: 300)` + rejection without `skill_id`
 6. `get_session` · `health`
 7. `end_task`
-8. `begin_task` with **explicit `skill_id`** + `inject_mode: compact` (deterministic compact path)
+8. `begin_task` with explicit `skill_id` + `inject_mode: compact`
 9. `get_session` · `end_task` · idempotent `end_task`
 
-Use the explicit-`skill_id` step when validating compact shaping — do not rely on heuristic `begin_task` alone (see below).
+## Routing vs injection
 
-**E2 sessionEnd hook:** `npm run test:session-end-hook` (or close the composer and check Hooks output).
+- **`suggest_skills`** — ranked candidates, never injects, never throws on low confidence
+- **`begin_task`** — requires explicit **`skill_id`**; shapes and injects only
 
-**Sprint F auto-begin hook:** `npm run test:auto-begin-hook` (requires `npm run build`). Verifies `session.json` v2, `active-body.md` bridge, and skip-on-active-session.
-
-## Heuristic `begin_task` vs deterministic testing
-
-When **`skill_id` is omitted**, `begin_task` runs the heuristic selector. That path **refuses injection** when confidence is below **`SKILLING_PLAN_MIN_CONFIDENCE`** (default **0.35**) and the match carries a `low_confidence` warning — by design, to avoid weak auto-selection.
-
-For **deterministic** compact-load testing in an IDE or Inspector:
+For deterministic compact-load testing:
 
 ```json
 {
@@ -42,7 +37,7 @@ For **deterministic** compact-load testing in an IDE or Inspector:
 }
 ```
 
-Or call **`load`** with `inject_mode: compact` before lifecycle tools. **`select`** still returns low-confidence matches (with warnings); only **`begin_task`** without `skill_id` blocks injection.
+Or call **`load`** with `inject_mode: compact`. Use **`list`** for catalog IDs (~280 tokens).
 
 ## MCP Inspector (manual)
 
@@ -52,7 +47,7 @@ From the repo root after `npm run build`:
 npx @modelcontextprotocol/inspector node dist/index.js --skill-root ./.agents/skills
 ```
 
-Use the Inspector UI to call lifecycle tools (**`begin_task`**, **`get_session`**, **`end_task`**) or low-level tools (**`list`**, **`select`**, **`load`**, **`cleanup`**).
+Use the Inspector UI to call lifecycle tools (**`begin_task(skill_id)`**, **`get_session`**, **`end_task`**) or routing tools (**`list`**, **`suggest_skills`**, **`load`**, **`cleanup`**).
 
 **SKILL_ROOT resolution order:** `--skill-root` arg → `SKILL_ROOT` env (ignored if literal `${workspaceFolder}`) → `skilling.config.json` → walk up from cwd for `.agents/skills` → bundled catalog. Use `npx skilling setup` to write absolute paths automatically; do not rely on `${workspaceFolder}` in MCP env as most hosts do not expand it.
 

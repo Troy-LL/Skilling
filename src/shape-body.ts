@@ -33,18 +33,24 @@ export type ShapeBodyResult = {
   token_estimate: number;
   bytes: number;
   inject_mode: InjectMode;
+  truncated?: boolean;
+  omitted_code_blocks?: number;
 };
 
 export function stripInternalOnlySections(body: string): string {
   return body.replace(INTERNAL_ONLY_RE, '').trim();
 }
 
-function compactMarkdown(body: string): string {
+function compactMarkdown(body: string): { text: string; omitted_code_blocks: number } {
   let s = stripInternalOnlySections(body);
-  s = s.replace(/```[\s\S]*?```/g, '\n*[code block omitted — use inject_mode=full if needed]*\n');
+  let omitted_code_blocks = 0;
+  s = s.replace(/```[\s\S]*?```/g, () => {
+    omitted_code_blocks += 1;
+    return '\n*[code block omitted — use inject_mode=full if needed]*\n';
+  });
   s = s.replace(/<!--[\s\S]*?-->/g, '');
   s = s.replace(/\n{3,}/g, '\n\n');
-  return s.trim();
+  return { text: s.trim(), omitted_code_blocks };
 }
 
 function truncateToBytes(text: string, maxBytes: number, suffix: string): string {
@@ -103,7 +109,11 @@ function buildSummaryBody(meta: ShapeBodyMeta): string {
   return `# ${meta.title}\n\n${core}\n\n*(Summary-tier inject only. Use inject_mode=compact or full for procedures and examples.)*`;
 }
 
-function prepareRawBody(rawBody: string, mode: InjectMode, options: ShapeBodyOptions): string {
+function prepareRawBody(
+  rawBody: string,
+  mode: InjectMode,
+  options: ShapeBodyOptions,
+): { text: string; omitted_code_blocks?: number } {
   switch (mode) {
     case 'summary':
       if (!options.meta) {
@@ -112,19 +122,23 @@ function prepareRawBody(rawBody: string, mode: InjectMode, options: ShapeBodyOpt
           'inject_mode=summary requires skill metadata (title/summary).',
         );
       }
-      return buildSummaryBody(options.meta);
-    case 'compact':
-      return compactMarkdown(rawBody);
+      return { text: buildSummaryBody(options.meta) };
+    case 'compact': {
+      const compact = compactMarkdown(rawBody);
+      return { text: compact.text, omitted_code_blocks: compact.omitted_code_blocks };
+    }
     case 'sections': {
       const names =
         options.injectSections && options.injectSections.length > 0
           ? options.injectSections
           : DEFAULT_SECTION_HEADINGS;
       const extracted = extractSectionsByHeading(rawBody, names);
-      return extracted.length > 0 ? extracted : compactMarkdown(rawBody);
+      return {
+        text: extracted.length > 0 ? extracted : compactMarkdown(rawBody).text,
+      };
     }
     default:
-      return stripInternalOnlySections(rawBody);
+      return { text: stripInternalOnlySections(rawBody) };
   }
 }
 
@@ -135,12 +149,20 @@ export function shapeSkillBody(
 ): ShapeBodyResult {
   const mode = options.mode ?? 'full';
   const prepared = prepareRawBody(rawBody, mode, options);
-  let body = ACTIVATION_HEADER + prepared;
+  let body = ACTIVATION_HEADER + prepared.text;
   let bytes = Buffer.byteLength(body, 'utf8');
+  let truncated = false;
 
   if (bytes > maxInjectBytes && (mode === 'compact' || mode === 'sections')) {
-    body = ACTIVATION_HEADER + truncateToBytes(prepared, maxInjectBytes - Buffer.byteLength(ACTIVATION_HEADER, 'utf8'), TRUNCATE_SUFFIX);
+    body =
+      ACTIVATION_HEADER +
+      truncateToBytes(
+        prepared.text,
+        maxInjectBytes - Buffer.byteLength(ACTIVATION_HEADER, 'utf8'),
+        TRUNCATE_SUFFIX,
+      );
     bytes = Buffer.byteLength(body, 'utf8');
+    truncated = true;
   }
 
   if (bytes > maxInjectBytes) {
@@ -155,10 +177,12 @@ export function shapeSkillBody(
     token_estimate: estimateTokens(body),
     bytes,
     inject_mode: mode,
+    ...(truncated ? { truncated: true } : {}),
+    ...(prepared.omitted_code_blocks ? { omitted_code_blocks: prepared.omitted_code_blocks } : {}),
   };
 }
 
-/** Pick inject depth from explicit mode, skill default, or token_budget heuristics. */
+/** Pick inject depth: explicit mode > token_budget heuristics > skill default (budget >= 900) > config default. */
 export function resolveInjectMode(
   explicit: InjectMode | undefined,
   meta: { inject_mode_default?: InjectMode; token_estimate?: number },
@@ -166,10 +190,12 @@ export function resolveInjectMode(
   configDefault: InjectMode = 'full',
 ): InjectMode {
   if (explicit) return explicit;
-  if (meta.inject_mode_default) return meta.inject_mode_default;
   if (tokenBudget !== undefined) {
     if (tokenBudget < 350) return 'summary';
     if (tokenBudget < 900) return 'compact';
+  }
+  if (meta.inject_mode_default && (tokenBudget === undefined || tokenBudget >= 900)) {
+    return meta.inject_mode_default;
   }
   return configDefault;
 }

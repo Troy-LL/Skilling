@@ -11,6 +11,7 @@ import { getSelector } from './selector/index.js';
 import {
   beginTask,
   endTask,
+  estimateShapedInjectTokens,
   getSession,
   loadSkillEpisode,
   resolveRepoRootFromSkillRoot,
@@ -24,15 +25,17 @@ type ToolResult = ReturnType<typeof toolOk>;
 
 const LOW_LEVEL_TOOL_NOTE = ' Low-level tool — use for debugging or custom flows, not routine work.';
 
-const SERVER_INSTRUCTIONS = `Skilling is an MCP skill router for AI coding agents. It selects procedural skills from .agents/skills/, shapes their body to a token budget, and manages task sessions with TTL and cleanup.
+const SERVER_INSTRUCTIONS = `Skilling is a portable context engine for AI coding agents. It shapes skill bodies to a token budget, injects them into task sessions, and evicts on end_task.
 
-Normal workflow: skill_plan (optional for multi-step goals) → begin_task → follow the returned body → end_task when the stage completes or topic changes.
+Routing (agent + catalog): list → optional suggest_skills → agent picks skill_id from plan.
+Injection (Skilling MCP): begin_task(skill_id, token_budget) → follow body → end_task before next skill or topic.
 
-Session source of truth: .skilling/session.json (active skill, summary, TTL) and .skilling/active-body.md (ephemeral bridge). Call get_session before begin_task to check if a session is already active.
+Do NOT rely on silent auto-routing for build tasks — always pass an explicit skill_id to begin_task.
+Discovery: begin_task(find-skills, token_budget=300). Implementation stages: token_budget=900.
 
-Do NOT: invent skill_id values; use list/select/load for routine work (debugging only); use find-skills except when the user wants to discover or install ecosystem skills.
+Session SOT: .skilling/session.json and .skilling/active-body.md. Call get_session before begin_task if unsure.
 
-On errors: read the message. VALIDATION_ERROR usually means pass an explicit skill_id or call list for valid IDs. STORE_UNAVAILABLE means call health or run npx skilling setup --force.
+On errors: VALIDATION_ERROR on begin_task usually means pass skill_id (call list or suggest_skills first). STORE_UNAVAILABLE → health then npx skilling setup --force.
 
 Fetch the skilling_workflow prompt for the full lifecycle procedure.`;
 
@@ -40,28 +43,42 @@ const SKILLING_WORKFLOW_PROMPT = `# Skilling task lifecycle
 
 ## Procedure
 
-1. For multi-step goals, call **skill_plan** with the goal; review \`skills_needed\`, \`confidence\`, and \`estimated_tokens\`.
-2. **Low-confidence routing:** if \`skill_plan\` returns \`confidence < 0.35\` or \`skills_needed\` is empty, **do not** call **begin_task** with a guessed skill — proceed with native coding or call **find-skills** to discover a better match.
-3. If **\`.skilling/active-body.md\`** exists (hook auto-routed), follow it for this turn; otherwise call **get_session** — if \`active: false\`, call **begin_task** with the user goal and optional \`phase\` (\`response_detail\` defaults to summary). Pass **token_budget** when context is tight.
-4. Obey skill **body** (from tool result or bridge file) until the stage is done.
-5. **end_task** before switching topic or phase; start a new **begin_task** for the next stage.
+1. Call **list** when you need installed skill IDs (~280 tokens tier-0 catalog).
+2. For ecosystem discovery, call **begin_task** with \`skill_id: "find-skills"\` and \`token_budget: 300\` (~72 tokens shaped).
+3. **Agent picks skill_id** from your plan or the catalog. Optionally call **suggest_skills** for ranked hints (no inject).
+4. Per stage: **begin_task(skill_id, token_budget=900)** → follow shaped **body** → **end_task** (required before next skill or topic).
+5. Do **not** rely on silent auto-routing for build tasks.
+
+## Budget ladder
+
+| Stage | token_budget | Typical inject |
+|-------|--------------|----------------|
+| discovery / plan | 300 | summary |
+| implement | 900 | compact |
+
+Pass explicit \`inject_mode\` to override. Compact omits code blocks — use \`full\` when templates matter.
 
 ## User-facing presentation
 
-- After routing: reply with **one sentence** using \`summary\` from the tool or session.
-- **Never** show \`alternatives\`, skill menus, \`list\` output, or raw score tables to the user.
-- Do not ask the user to pick a \`skill_id\`.
+- After begin_task: reply with **one sentence** using \`summary\` from the tool or session.
+- **Never** show \`candidates\`, skill menus, raw score tables, or \`list\` output to the user unless they asked.
 
 ## End or switch tasks
 
-- Before an unrelated topic or new dev stage: **end_task** (uses \`.skilling/session.json\` when \`correlation_id\` is omitted).
-- Do not read \`.agents/skills/\` paths directly when MCP tools are available (except **\`.skilling/active-body.md\`** bridge).
+- **end_task** is required before switching topic or skill (uses \`.skilling/session.json\` when \`correlation_id\` is omitted).
+- \`end_previous: true\` (default on begin_task) clears session files — not necessarily all host context.
+- Do not read \`.agents/skills/\` directly when MCP tools are available (except \`.skilling/active-body.md\` bridge).
+
+## Deprecated
+
+- **skill_plan** — prefer agent planning + suggest_skills + begin_task(skill_id).
+- **select** — alias for suggest_skills (debugging only).
 
 ## Do not
 
-- Call **list** / **select** / **load** in normal work (debugging only).
+- Call **begin_task** without **skill_id**.
 - Skip **end_task** when moving to unrelated work.
-- Use routing when the user only wants to **find or install** external skills — use **find-skills**.`;
+- Use find-skills routing when the user only wants ecosystem install — use **find-skills** skill body via begin_task.`;
 
 function toolError(code: SkillingErrorCode, message: string) {
   const payload = errorPayload(code, message);
@@ -90,46 +107,99 @@ function handleError(tool: string, e: unknown) {
 }
 
 const selectInputSchema = {
-  prompt: z.string().describe('User message or task description to match against skill metadata'),
-  goal: z.string().optional().describe('Optional higher-level goal'),
+  goal: z.string().optional().describe('Task goal for skill matching'),
+  prompt: z
+    .string()
+    .optional()
+    .describe('Legacy alias for goal (select compat) — provide goal or prompt'),
   context: z.string().optional().describe('Optional extra context merged into matching'),
   client: z.string().optional().describe('Optional host hint (e.g. cursor)'),
   workspace_path: z.string().optional().describe('Optional workspace path for keyword context'),
-  token_budget: z.number().int().optional().describe('Max token_estimate for selected skill body'),
-  top_k: z.number().int().optional().describe('Return up to N ranked candidates (default 1)'),
+  select_max_tokens: z
+    .number()
+    .int()
+    .optional()
+    .describe('Optional cap on metadata token_estimate when ranking — omit to allow any skill'),
+  token_budget: z
+    .number()
+    .int()
+    .optional()
+    .describe('Deprecated alias for select_max_tokens — does not affect inject shaping'),
+  top_k: z.number().int().optional().describe('Return up to N ranked candidates (default 5)'),
 };
 
-async function runSelect(
+function resolveSuggestGoal(input: z.infer<z.ZodObject<typeof selectInputSchema>>): string {
+  return (input.goal?.trim() || input.prompt?.trim() || '').trim();
+}
+
+function resolveSelectMaxTokens(
+  input: z.infer<z.ZodObject<typeof selectInputSchema>>,
+): number | undefined {
+  return input.select_max_tokens ?? input.token_budget;
+}
+
+function enrichSuggestResult(
+  metas: Map<string, import('./parse.js').SkillFrontMatter>,
+  result: import('./selector/types.js').SelectResult,
+) {
+  const ranked =
+    result.candidates ??
+    (result.skill_id
+      ? [{ skill_id: result.skill_id, confidence: result.confidence }]
+      : []);
+
+  const candidates = ranked.map((entry) => {
+    const meta = metas.get(entry.skill_id);
+    return {
+      skill_id: entry.skill_id,
+      confidence: entry.confidence,
+      summary: meta?.summary ?? '',
+      token_estimate_meta: meta?.token_estimate ?? 0,
+    };
+  });
+
+  return {
+    skill_id: result.skill_id,
+    confidence: result.confidence,
+    rationale: result.rationale,
+    candidates,
+    ...(result.warnings?.length ? { warnings: result.warnings } : {}),
+  };
+}
+
+async function runSuggest(
   rootDisplay: string,
   config: SkillingConfig,
   input: z.infer<z.ZodObject<typeof selectInputSchema>>,
+  toolName: string,
 ): Promise<ToolResult> {
   const start = Date.now();
-  const trimmedPrompt = input.prompt.trim();
-  if (!trimmedPrompt && !(input.goal?.trim())) {
-    return toolError('VALIDATION_ERROR', 'select requires a non-empty prompt or goal.');
+  const trimmedGoal = resolveSuggestGoal(input);
+  if (!trimmedGoal) {
+    return toolError('VALIDATION_ERROR', 'suggest_skills requires a non-empty goal or prompt.');
   }
-  logPromptSnippet('select', trimmedPrompt || input.goal!.trim());
-  if (input.prompt.length > MAX_SELECT_INPUT_CHARS || (input.goal?.length ?? 0) > MAX_SELECT_INPUT_CHARS) {
+  logPromptSnippet(toolName, trimmedGoal);
+  const promptLen = Math.max(input.prompt?.length ?? 0, input.goal?.length ?? 0);
+  if (promptLen > MAX_SELECT_INPUT_CHARS) {
     return toolError(
       'VALIDATION_ERROR',
-      `prompt and goal must each be at most ${MAX_SELECT_INPUT_CHARS} characters.`,
+      `goal and prompt must each be at most ${MAX_SELECT_INPUT_CHARS} characters.`,
     );
   }
   const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
   if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
   const selector = getSelector(config);
   const result = selector.select([...index.metas.values()], {
-    prompt: trimmedPrompt || input.goal!.trim(),
-    goal: input.goal?.trim(),
+    prompt: trimmedGoal,
     context: input.context?.trim(),
     client: input.client?.trim(),
     workspace_path: input.workspace_path?.trim(),
-    token_budget: input.token_budget ?? config.defaultTokenBudget,
-    top_k: input.top_k,
+    select_max_tokens: resolveSelectMaxTokens(input),
+    top_k: input.top_k ?? 5,
   });
-  logToolOk('skill_select', { skill_id: result.skill_id ?? undefined, duration_ms: Date.now() - start });
-  return toolOk(result as unknown as Record<string, unknown>);
+  const payload = enrichSuggestResult(index.metas, result);
+  logToolOk(toolName, { skill_id: payload.skill_id ?? undefined, duration_ms: Date.now() - start });
+  return toolOk(payload as unknown as Record<string, unknown>);
 }
 
 async function runList(
@@ -192,8 +262,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'list',
     {
       description:
-        'List valid skills under SKILL_ROOT (Tier 0+1: id, title, summary, tags). Fails if store invalid.' +
-        LOW_LEVEL_TOOL_NOTE,
+        'Official tier-0 catalog: list installed skills (id, title, summary, tags). Use when you need valid skill_ids for begin_task. ~280 tokens.',
       inputSchema: {
         tags: z
           .array(z.string())
@@ -213,8 +282,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_list',
     {
-      description:
-        'Alias for list — enumerate skills (summaries only, no bodies).' + LOW_LEVEL_TOOL_NOTE,
+      description: 'Alias for list — enumerate installed skills (summaries only, no bodies).',
       inputSchema: {
         tags: z.array(z.string()).optional(),
       },
@@ -228,11 +296,35 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     listHandler,
   );
 
+  const suggestHandler = async (input: z.infer<z.ZodObject<typeof selectInputSchema>>) => {
+    try {
+      return await runSuggest(rootDisplay, config, input, 'suggest_skills');
+    } catch (e) {
+      return handleError('suggest_skills', e);
+    }
+  };
+
+  mcp.registerTool(
+    'suggest_skills',
+    {
+      description:
+        'Rank skill candidates for a goal using metadata only — never injects. Returns skill_id, confidence, candidates with summaries. Agent decides whether to call begin_task(skill_id). Never throws on low confidence.',
+      inputSchema: selectInputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    suggestHandler,
+  );
+
   const selectHandler = async (input: z.infer<z.ZodObject<typeof selectInputSchema>>) => {
     try {
-      return await runSelect(rootDisplay, config, input);
+      return await runSuggest(rootDisplay, config, input, 'select');
     } catch (e) {
-      return handleError('skill_select', e);
+      return handleError('select', e);
     }
   };
 
@@ -240,8 +332,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'select',
     {
       description:
-        'Heuristically pick the best skill_id (Tier 1 only). Prefer begin_task for full lifecycle.' +
-        LOW_LEVEL_TOOL_NOTE,
+        'Deprecated alias for suggest_skills — ranked candidates, no inject.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: selectInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -256,8 +347,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
   mcp.registerTool(
     'skill_select',
     {
-      description:
-        'Alias for select — match prompt to skill using summaries only.' + LOW_LEVEL_TOOL_NOTE,
+      description: 'Deprecated alias for suggest_skills.' + LOW_LEVEL_TOOL_NOTE,
       inputSchema: selectInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -273,11 +363,16 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'skill_plan',
     {
       description:
-        'Call before begin_task on multi-step goals to discover which skills are needed and in what order. Returns plan steps, skills_needed (with confidence), estimated_tokens. If confidence < 0.35 or skills_needed is empty, proceed without skill injection or use find-skills to grow the catalog.',
+        'DEPRECATED — prefer agent planning + suggest_skills + begin_task(skill_id). Returns ranked suggestions and shaped inject token estimates only (no plan steps, no inject).',
       inputSchema: {
         goal: z.string().describe('High-level task or goal'),
         context: z.string().optional(),
-        max_skills: z.number().int().optional().describe('Max skills in plan (default 5)'),
+        max_skills: z.number().int().optional().describe('Max skills in suggestions (default 5)'),
+        token_budget: z
+          .number()
+          .int()
+          .optional()
+          .describe('Budget for shaped inject estimates (default 900)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -286,20 +381,38 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
         openWorldHint: false,
       },
     },
-    async ({ goal, context, max_skills }) => {
+    async ({ goal, context, max_skills, token_budget }) => {
       try {
         const trimmedGoal = requireNonEmptyTrimmed(goal, 'skill_plan goal');
         const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
         if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
         logPromptSnippet('skill_plan', trimmedGoal);
         const selector = getSelector(config);
+        const budget = token_budget ?? config.defaultTokenBudget;
         const plan = selector.plan([...index.metas.values()], {
           goal: trimmedGoal,
           context: context?.trim(),
           max_skills: max_skills ?? 5,
         });
-        logToolOk('skill_plan', { steps: plan.plan.length });
-        return toolOk(plan as unknown as Record<string, unknown>);
+        const suggestions = plan.suggestions.map((s) => ({
+          ...s,
+          inject_token_estimate: estimateShapedInjectTokens(
+            rootDisplay,
+            s.skill_id,
+            config,
+            budget,
+          ),
+        }));
+        const estimated_tokens = suggestions.reduce(
+          (sum, s) => sum + (s.inject_token_estimate ?? 0),
+          0,
+        );
+        logToolOk('skill_plan', { count: suggestions.length });
+        return toolOk({
+          ...plan,
+          suggestions,
+          estimated_tokens,
+        } as unknown as Record<string, unknown>);
       } catch (e) {
         return handleError('skill_plan', e);
       }
@@ -336,7 +449,9 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
           .number()
           .int()
           .optional()
-          .describe('Hints inject depth when inject_mode omitted (<350→summary, <900→compact)'),
+          .describe(
+            'Inject shaping only: 300 discovery/plan, 900 implement (<350→summary, <900→compact). Does not filter skill selection.',
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -429,6 +544,8 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
         skill_count: index.skills.length,
         skills_root: rootDisplay,
         skills_meta_dir: config.skillsMetaDir,
+        setup_hint:
+          'Set SKILL_ROOT to an absolute .agents/skills path, or run npx skilling setup --force. Optional: SKILLS_META_DIR for overlay YAML.',
       });
     },
   );
@@ -437,7 +554,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'get_session',
     {
       description:
-        'Check whether a task session is currently active before deciding to call begin_task. Returns active, skill_id, summary, inject_mode. Expired TTL returns active:false and auto-clears. Use include_body to re-read shaped skill content without opening a new correlation.',
+        'Check active task session before begin_task. Returns skill_id, summary, inject_mode, stale (TTL >80% elapsed). Expired TTL returns active:false and auto-clears. Use include_body to re-read shaped content.',
       inputSchema: {
         include_summary: z.boolean().optional(),
         include_body: z.boolean().optional(),
@@ -463,16 +580,23 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'begin_task',
     {
       description:
-        'Start of every focused dev task. Selects the best skill, injects a shaped body within token_budget, and opens a session. Returns skill_id, body (follow it), token_estimate, correlation_id. Call end_task when the stage is done or topic changes. On VALIDATION_ERROR: call list for valid skill_ids or pass skill_id explicitly.',
+        'Inject-only: requires skill_id. Shapes skill body within token_budget and opens a session. Returns body (follow it), token_estimate, correlation_id. Call list or suggest_skills first to pick skill_id. Required: end_task before next skill or topic.',
       inputSchema: {
         prompt: z.string(),
         goal: z.string().optional(),
         context: z.string().optional(),
         client: z.string().optional(),
         workspace_path: z.string().optional(),
-        skill_id: z.string().optional(),
-        phase: z.string().optional(),
-        token_budget: z.number().int().optional(),
+        skill_id: z.string().describe('Required — call list or suggest_skills to choose'),
+        phase: z
+          .string()
+          .optional()
+          .describe('plan|discovery → budget 300; implement → budget 900 when token_budget omitted'),
+        token_budget: z
+          .number()
+          .int()
+          .optional()
+          .describe('Inject shaping: 300 discovery, 900 implement (<350→summary, <900→compact)'),
         inject_mode: injectModeSchema.optional(),
         end_previous: z.boolean().optional(),
         response_detail: z.enum(['summary', 'full']).optional(),
@@ -500,7 +624,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     'end_task',
     {
       description:
-        'Call after every stage completes or before switching to an unrelated topic. Cleans up the correlation registry and clears .skilling/session.json + active-body.md. Idempotent — safe to call twice. Do NOT skip this.',
+        'Required after every stage completes or before switching skill/topic. Cleans correlation registry and clears .skilling/session.json + active-body.md. Idempotent when correlation_id is passed. end_previous on begin_task clears session files but not necessarily all host context.',
       inputSchema: {
         correlation_id: z.string().uuid().optional(),
       },
@@ -525,7 +649,7 @@ export function createSkillingServer(skillRoot: string, config: SkillingConfig):
     {
       title: 'Skilling lifecycle workflow',
       description:
-        'Full Skilling MCP lifecycle procedure — plan, begin_task, follow body, end_task. Fetch when you need the complete workflow guide.',
+        'Full Skilling MCP lifecycle — list, suggest_skills, begin_task(skill_id), end_task. Fetch when you need the complete workflow guide.',
     },
     async () => ({
       messages: [

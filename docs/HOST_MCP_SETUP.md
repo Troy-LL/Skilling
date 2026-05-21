@@ -85,9 +85,13 @@ npx skilling setup --dry-run
 
 Skilling ships three layers so agents understand the workflow in any MCP-capable IDE — not only Cursor:
 
-1. **Server instructions** — sent to the model automatically on every MCP connection (workflow, session files, what not to do).
-2. **Tool descriptions** — lifecycle tools (`begin_task`, `end_task`, `get_session`, `skill_plan`, `health`) describe when/why/what-next, not just mechanics.
-3. **`skilling_workflow` MCP prompt** — fetch on demand for the full orchestrator procedure (plan → implement → review, presentation rules, end/switch tasks).
+1. **Server instructions** — sent to the model automatically on every MCP connection (list → suggest_skills → begin_task(skill_id) → end_task).
+2. **Tool descriptions** — lifecycle tools describe when/why/what-next, not just mechanics.
+3. **`skilling_workflow` MCP prompt** — fetch on demand for the full orchestrator procedure.
+
+### Disable duplicate static skill lists
+
+When Skilling MCP is enabled, **remove static `<available_skills>` blocks** from the host system prompt. Use **`list`** on demand (~280 tokens) instead of always-on catalog injection — otherwise you double-pay tokens.
 
 **Per-IDE rules files** — pass **`--write-rules`** to write lifecycle rules (opt-in only; default setup never touches these files):
 
@@ -107,12 +111,12 @@ Default `npx skilling setup` does **not** write rules files — pass **`--write-
 ```markdown
 # Skilling MCP — lifecycle rules
 
-Workflow: skill_plan (optional) → begin_task → follow body → end_task.
-- Check get_session first; if active:true follow the existing session body.
-- Never invent skill_id. On VALIDATION_ERROR call list or pass skill_id explicitly.
-- find-skills only when the user wants to discover/install ecosystem skills.
-- list/select/load are debugging tools — not for routine task work.
-- end_task before switching topics or dev phases.
+Workflow: list → suggest_skills (optional) → begin_task(skill_id) → follow body → end_task.
+- begin_task requires skill_id — call list or suggest_skills first.
+- token_budget: 300 discovery, 900 implement (inject shaping only).
+- find-skills via begin_task(find-skills, 300) for ecosystem discovery.
+- end_task required before switching topics or skills.
+- Disable static skill lists in host prompt when Skilling MCP is enabled.
 ```
 
 ---
@@ -121,7 +125,7 @@ Workflow: skill_plan (optional) → begin_task → follow body → end_task.
 
 In your IDE or via CLI:
 
-**`list`** → **`skill_plan`** → **`begin_task`** → **`get_session`** → **`end_task`**
+**`list`** → **`suggest_skills`** → **`begin_task(skill_id)`** → **`get_session`** → **`end_task`**
 
 From repo root (Skilling development):
 
@@ -143,13 +147,13 @@ See [`docs/MCP_TESTING.md`](MCP_TESTING.md).
 | MCP not listed after setup | IDE not restarted | Quit and reopen the IDE |
 | Stale paths after Node upgrade | Old absolute paths in config | `npx skilling setup --force` |
 | Wrong skills on Claude Desktop / Windsurf / Zed | Global `SKILL_ROOT` points at another project | Run setup from the active project: `npx skilling setup --force` |
-| `begin_task` validation error ~0.3x confidence | Weak heuristic match | Pass explicit `skill_id` or use `load` with `inject_mode: compact` |
+| `begin_task` validation error | Missing or invalid `skill_id` | Call `list` or `suggest_skills`, then `begin_task(skill_id, …)` |
 
 ### Selector and logging
 
 - **`SKILLING_SELECTOR`**: only **`heuristic`** is implemented today
 - **`SKILLING_SELECT_MIN_CONFIDENCE`**: default `0.25`
-- **`SKILLING_PLAN_MIN_CONFIDENCE`**: default `0.35`; `begin_task` rejects weak auto-select below this
+- **`SKILLING_PLAN_MIN_CONFIDENCE`**: default `0.35`; used by hook auto-inject when `SKILLING_HOOK_AUTO_INJECT=1`
 - **`SKILLING_LOG_PROMPTS=true`**: logs truncated prompts at debug level
 
 ---

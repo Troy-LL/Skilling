@@ -11,8 +11,11 @@ export const MAX_BODY_BYTES = 192 * 1024;
 /** Max shaped inject payload (SPEC default) */
 export const MAX_INJECT_BYTES = 8192;
 
-/** Default token budget when caller omits token_budget (SPEC) */
-export const DEFAULT_TOKEN_BUDGET = 2048;
+/** Default inject token budget when caller omits token_budget (implementation stage). */
+export const DEFAULT_TOKEN_BUDGET = 900;
+
+/** Discovery/plan phase inject budget when phase hints apply. */
+export const DISCOVERY_TOKEN_BUDGET = 300;
 
 /** Hint for hosts (ms); overridden by ttl_seconds in front matter */
 export const DEFAULT_TTL_MS = 300_000;

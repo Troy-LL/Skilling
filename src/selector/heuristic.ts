@@ -8,7 +8,6 @@ import type { SkillFrontMatter } from '../parse.js';
 import type {
   PlanOptions,
   PlanResult,
-  PlanStep,
   SelectOptions,
   SelectResult,
   SkillSelector,
@@ -134,17 +133,17 @@ export function selectFromCandidates(
     .join(' ');
   const queryLower = combined.toLowerCase();
   const tokens = new Set(tokenize(combined));
-  const budget = options.token_budget;
+  const maxTokens = options.select_max_tokens ?? options.token_budget;
   const globalMin = options.selectMinConfidence ?? SELECT_MIN_CONFIDENCE;
 
   let pool = injectableCandidates(candidates);
-  if (budget !== undefined) {
-    const within = pool.filter((m) => (m.token_estimate ?? 0) <= budget);
+  if (maxTokens !== undefined) {
+    const within = pool.filter((m) => (m.token_estimate ?? 0) <= maxTokens);
     if (within.length === 0) {
       return {
         skill_id: null,
         confidence: 0,
-        rationale: 'All candidates exceed the requested token_budget.',
+        rationale: 'All candidates exceed select_max_tokens.',
         warnings: ['budget_exceeded'],
       };
     }
@@ -160,7 +159,7 @@ export function selectFromCandidates(
     .filter((s) => s.normalized >= s.minConf)
     .sort((a, b) => {
       if (b.normalized !== a.normalized) return b.normalized - a.normalized;
-      if (budget !== undefined) {
+      if (maxTokens !== undefined) {
         return (a.meta.token_estimate ?? 0) - (b.meta.token_estimate ?? 0);
       }
       return a.meta.id.localeCompare(b.meta.id);
@@ -223,47 +222,22 @@ export function planFromCandidates(
     .slice(0, options.max_skills ?? 5);
 
   const skills_needed = ranked.map((r) => r.meta.id);
-  const estimated_tokens = ranked.reduce((sum, r) => sum + (r.meta.token_estimate ?? 0), 0);
-
-  const plan: PlanStep[] = [];
-  let step = 1;
-  if (ranked.length > 0) {
-    plan.push({
-      step: step++,
-      description: 'Review scope and confirm skill selection against the goal.',
-      skill_id: null,
-      rationale: 'Planning uses Tier 1 summaries only; no skill body loaded yet.',
-    });
-    for (const r of ranked) {
-      plan.push({
-        step: step++,
-        description: `Apply guidance from skill "${r.meta.title}" (${r.meta.id}).`,
-        skill_id: r.meta.id,
-        rationale: `Matched with confidence ${Math.round(r.normalized * 100) / 100}.`,
-      });
-    }
-    plan.push({
-      step: step++,
-      description: 'Implement changes and run tests; call end_task when the stage completes.',
-      skill_id: null,
-      rationale: 'Implementation may combine multiple skills sequentially via begin_task.',
-    });
-  } else {
-    plan.push({
-      step: 1,
-      description: 'Proceed without skill injection; no strong skill match for this goal.',
-      skill_id: null,
-      rationale: selectResult.rationale,
-    });
-  }
+  const suggestions = ranked.map((r) => ({
+    skill_id: r.meta.id,
+    confidence: Math.round(r.normalized * 1000) / 1000,
+    summary: r.meta.summary,
+  }));
 
   const topConfidence =
     ranked.length > 0 ? Math.round(ranked[0]!.normalized * 1000) / 1000 : null;
 
   return {
-    plan,
+    deprecated: true as const,
+    message:
+      'Prefer agent planning + suggest_skills + begin_task(skill_id). skill_plan returns ranked suggestions only.',
     skills_needed,
-    estimated_tokens,
+    suggestions,
+    estimated_tokens: 0,
     confidence: topConfidence ?? (selectResult.skill_id ? selectResult.confidence : null),
   };
 }

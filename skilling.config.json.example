@@ -3,7 +3,7 @@
   "selector": "heuristic",
   "defaultInjectMode": "compact",
   "maxInjectBytes": 8192,
-  "defaultTokenBudget": 2048,
+  "defaultTokenBudget": 900,
   "ttlSeconds": 300,
   "log": { "level": "info" }
 }

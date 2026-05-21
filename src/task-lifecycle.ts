@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { SkillingConfig } from './config.js';
 import { CorrelationRegistry } from './correlation-registry.js';
-import { DEFAULT_TTL_MS, LOW_CONFIDENCE_THRESHOLD, MAX_SELECT_INPUT_CHARS } from './constants.js';
+import {
+  DEFAULT_TTL_MS,
+  DISCOVERY_TOKEN_BUDGET,
+  MAX_SELECT_INPUT_CHARS,
+} from './constants.js';
 import { SkillingError } from './errors.js';
 import { logToolOk } from './observability.js';
 import type { SkillFrontMatter } from './parse.js';
 import { resolveRepoRoot } from './repo-root.js';
-import { getSelector } from './selector/index.js';
 import type { SelectResult } from './selector/types.js';
 import { resolveInjectMode, shapeSkillBody, type InjectMode, type ShapeBodyResult } from './shape-body.js';
 import {
@@ -20,7 +23,7 @@ import {
   writeSession,
 } from './session-store.js';
 import { buildSessionSummary, promptFingerprint } from './session-summary.js';
-import { formatIndexError, getSkillIndex, loadSkillBody } from './store.js';
+import { loadSkillBody } from './store.js';
 import { isValidSkillId } from './validate.js';
 
 const correlationRegistry = new CorrelationRegistry();
@@ -37,6 +40,8 @@ export type LoadEpisodeResult = {
   correlation_id: string;
   merge_hint: { role: 'system'; ephemeral: boolean };
   inject_mode: InjectMode;
+  truncated?: boolean;
+  omitted_code_blocks?: number;
 };
 
 export type BeginTaskInput = {
@@ -45,7 +50,7 @@ export type BeginTaskInput = {
   context?: string;
   client?: string;
   workspace_path?: string;
-  skill_id?: string;
+  skill_id: string;
   phase?: string;
   token_budget?: number;
   inject_mode?: InjectMode;
@@ -82,6 +87,7 @@ export type GetSessionResult =
       correlation_id: string;
       ttl_ms: number;
       started_at: string;
+      stale?: boolean;
       phase?: string;
       title?: string;
       summary?: string;
@@ -99,6 +105,13 @@ export function validateSkillIdForLoad(skill_id: string): string | null {
     return 'skill_id must not contain path segments. Call the list tool for valid ids.';
   }
   return null;
+}
+
+function resolveTokenBudget(input: BeginTaskInput, config: SkillingConfig): number {
+  if (input.token_budget !== undefined) return input.token_budget;
+  const phase = input.phase?.trim().toLowerCase();
+  if (phase === 'plan' || phase === 'discovery') return DISCOVERY_TOKEN_BUDGET;
+  return config.defaultTokenBudget;
 }
 
 function ttlMsFromMeta(meta: { ttl_seconds?: number }, config: SkillingConfig): number {
@@ -195,6 +208,8 @@ export function loadSkillEpisode(
     correlation_id,
     merge_hint: { role: 'system', ephemeral: true },
     inject_mode: shaped.inject_mode,
+    ...(shaped.truncated ? { truncated: shaped.truncated } : {}),
+    ...(shaped.omitted_code_blocks ? { omitted_code_blocks: shaped.omitted_code_blocks } : {}),
   };
 }
 
@@ -214,6 +229,16 @@ function shapeBeginTaskResult(
   if (detail === 'full') return full;
   const { alternatives: _alternatives, ...rest } = full;
   return rest;
+}
+
+export function estimateShapedInjectTokens(
+  skillRoot: string,
+  skillId: string,
+  config: SkillingConfig,
+  tokenBudget: number,
+): number {
+  return loadAndShapeSkill(skillRoot, skillId, config, { token_budget: tokenBudget }).shaped
+    .token_estimate;
 }
 
 export function beginTask(
@@ -236,8 +261,24 @@ export function beginTask(
     );
   }
 
+  const skillId = input.skill_id?.trim();
+  if (!skillId) {
+    throw new SkillingError(
+      'VALIDATION_ERROR',
+      'begin_task requires skill_id. Call list or suggest_skills to pick a skill, then retry with an explicit skill_id.',
+    );
+  }
+
+  const err = validateSkillIdForLoad(skillId);
+  if (err) throw new SkillingError('VALIDATION_ERROR', err);
+
   const responseDetail: ResponseDetail = input.response_detail ?? 'summary';
-  const selector = getSelector(config);
+  const tokenBudget = resolveTokenBudget(input, config);
+  const selectExtras: SelectResult = {
+    skill_id: skillId,
+    confidence: 1,
+    rationale: 'skill_id provided by caller',
+  };
 
   let previous_ended = false;
   if (input.end_previous !== false) {
@@ -251,61 +292,18 @@ export function beginTask(
     }
   }
 
-  let skillId = input.skill_id?.trim();
-  let selectExtras: SelectResult = {
-    skill_id: skillId ?? null,
-    confidence: 1,
-    rationale: 'skill_id provided by caller',
-  };
-
-  if (!skillId) {
-    const index = getSkillIndex(skillRoot, config.skillsMetaDir);
-    if (!index.ok) throw new SkillingError('STORE_UNAVAILABLE', formatIndexError(index));
-    const result = selector.select([...index.metas.values()], {
-      prompt: trimmedPrompt || input.goal!.trim(),
-      goal: input.goal?.trim(),
-      context: input.context?.trim(),
-      client: input.client?.trim(),
-      workspace_path: input.workspace_path?.trim(),
-      token_budget: input.token_budget ?? config.defaultTokenBudget,
-    });
-    if (!result.skill_id) {
-      throw new SkillingError(
-        'VALIDATION_ERROR',
-        result.rationale +
-          (result.warnings?.length ? ` warnings: ${result.warnings.join(', ')}` : ''),
-      );
-    }
-    if (
-      result.confidence < (config.planMinConfidence ?? LOW_CONFIDENCE_THRESHOLD) &&
-      result.warnings?.includes('low_confidence')
-    ) {
-      throw new SkillingError(
-        'VALIDATION_ERROR',
-        `No strong skill match (confidence ${result.confidence}). Proceed without skill injection, call find-skills to discover a skill, or pass an explicit skill_id.`,
-      );
-    }
-    skillId = result.skill_id;
-    selectExtras = result;
-  } else {
-    const err = validateSkillIdForLoad(skillId);
-    if (err) throw new SkillingError('VALIDATION_ERROR', err);
-  }
-
   const episode = loadSkillEpisode(skillRoot, skillId, config, undefined, {
     inject_mode: input.inject_mode,
-    token_budget: input.token_budget ?? config.defaultTokenBudget,
+    token_budget: tokenBudget,
   });
   const summary = buildSessionSummary(episode.title, selectExtras.rationale);
 
-  const tokenBudget = input.token_budget ?? config.defaultTokenBudget;
   const sessionPayload: SkillSessionWrite = {
     skill_id: episode.skill_id,
     title: episode.title,
     summary,
     rationale: selectExtras.rationale,
     confidence: selectExtras.confidence,
-    ...(selectExtras.warnings?.length ? { warnings: selectExtras.warnings } : {}),
     correlation_id: episode.correlation_id,
     ttl_ms: episode.ttl_ms,
     started_at: new Date().toISOString(),
@@ -322,8 +320,6 @@ export function beginTask(
     confidence: selectExtras.confidence,
     rationale: selectExtras.rationale,
     summary,
-    ...(selectExtras.warnings?.length ? { warnings: selectExtras.warnings } : {}),
-    ...(selectExtras.alternatives?.length ? { alternatives: selectExtras.alternatives } : {}),
     previous_ended,
   };
 
@@ -373,6 +369,9 @@ export function getSession(
 
   const includeSummary = options?.include_summary !== false;
   const includeBody = options?.include_body === true;
+  const startedMs = Date.parse(session.started_at);
+  const stale =
+    !Number.isNaN(startedMs) && Date.now() - startedMs > session.ttl_ms * 0.8;
 
   const base: GetSessionResult = {
     active: true,
@@ -380,6 +379,7 @@ export function getSession(
     correlation_id: session.correlation_id,
     ttl_ms: session.ttl_ms,
     started_at: session.started_at,
+    ...(stale ? { stale: true } : {}),
     ...(session.phase ? { phase: session.phase } : {}),
     ...(includeSummary
       ? {

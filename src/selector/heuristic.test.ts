@@ -120,13 +120,27 @@ describe('selectFromCandidates', () => {
     assert.equal(r.confidence, 0);
   });
 
-  it('excludes skills over token_budget', () => {
+  it('excludes skills over select_max_tokens when set', () => {
     const r = selectFromCandidates(candidates, {
       prompt: 'code review security',
-      token_budget: 100,
+      select_max_tokens: 100,
     });
     assert.equal(r.skill_id, null);
     assert.ok(r.warnings?.includes('budget_exceeded'));
+  });
+
+  it('allows large skills when select_max_tokens omitted', () => {
+    const large: SkillFrontMatter = {
+      id: 'find-skills',
+      title: 'Find Skills',
+      summary: 'Discover skills',
+      tags: ['discovery'],
+      triggers: ['find a skill'],
+      token_estimate: 1480,
+      inject: true,
+    };
+    const r = selectFromCandidates([large], { prompt: 'find a skill for API testing' });
+    assert.equal(r.skill_id, 'find-skills');
   });
 
   it('does not pick MCP skills for generic TypeScript CLI prompts', () => {
@@ -162,11 +176,12 @@ describe('selectFromCandidates', () => {
 });
 
 describe('planFromCandidates', () => {
-  it('returns plan steps and skills_needed', () => {
+  it('returns deprecated suggestions and skills_needed', () => {
     const p = planFromCandidates(candidates, {
       goal: 'review this PR and fix CI',
     });
-    assert.ok(p.plan.length >= 1);
+    assert.equal(p.deprecated, true);
+    assert.ok(Array.isArray(p.suggestions));
     assert.ok(Array.isArray(p.skills_needed));
     assert.ok(p.estimated_tokens >= 0);
   });
@@ -176,7 +191,7 @@ describe('planFromCandidates', () => {
       goal: 'deploy kubernetes with helm charts and RBAC policies',
     });
     assert.deepEqual(p.skills_needed, []);
-    assert.match(p.plan[0]!.description, /without skill injection/i);
+    assert.equal(p.suggestions.length, 0);
   });
 
   it('includes strong matches only in skills_needed', () => {

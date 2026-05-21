@@ -6,6 +6,9 @@ export type SelectOptions = {
   context?: string;
   client?: string;
   workspace_path?: string;
+  /** Optional cap on metadata token_estimate when ranking candidates. Omit to allow any skill. */
+  select_max_tokens?: number;
+  /** @deprecated Use select_max_tokens — does not affect inject shaping. */
   token_budget?: number;
   top_k?: number;
   selectMinConfidence?: number;
@@ -27,11 +30,11 @@ export type SelectResult = {
   alternatives?: SelectAlternative[];
 };
 
-export type PlanStep = {
-  step: number;
-  description: string;
-  skill_id: string | null;
-  rationale: string;
+export type PlanSuggestion = {
+  skill_id: string;
+  confidence: number;
+  summary: string;
+  inject_token_estimate?: number;
 };
 
 export type PlanOptions = {
@@ -43,8 +46,10 @@ export type PlanOptions = {
 };
 
 export type PlanResult = {
-  plan: PlanStep[];
+  deprecated: true;
+  message: string;
   skills_needed: string[];
+  suggestions: PlanSuggestion[];
   estimated_tokens: number;
   confidence: number | null;
 };

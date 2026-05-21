@@ -16,12 +16,11 @@ export const SKILLING_RULES_HEADER = '## Skilling MCP';
 
 export const SKILLING_LIFECYCLE_RULES = `# Skilling MCP — lifecycle rules
 
-Workflow: skill_plan (optional) → begin_task → follow body → end_task.
-- Check get_session first; if active:true follow the existing session body.
-- Never invent skill_id. On VALIDATION_ERROR call list or pass skill_id explicitly.
-- find-skills only when the user wants to discover/install ecosystem skills.
-- list/select/load are debugging tools — not for routine task work.
-- end_task before switching topics or dev phases.
+Workflow: list → suggest_skills (optional) → begin_task(skill_id) → follow body → end_task.
+- begin_task requires skill_id — call list or suggest_skills first.
+- token_budget: 300 discovery, 900 implement (inject shaping only).
+- find-skills via begin_task(find-skills, 300) for ecosystem discovery.
+- end_task required before switching topics or skills.
 `;
 
 export const SKILLING_SYSTEM_PROMPT_NOTE = `Add these lifecycle rules to your IDE system prompt or rules file:

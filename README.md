@@ -228,7 +228,7 @@ Copy [`skilling.config.json.example`](skilling.config.json.example) to `skilling
   "skillsRoot": "./.agents/skills",
   "defaultInjectMode": "compact",
   "maxInjectBytes": 8192,
-  "defaultTokenBudget": 2048
+  "defaultTokenBudget": 900
 }
 ```
 

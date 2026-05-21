@@ -1,44 +1,45 @@
 ---
-description: Skilling MCP lifecycle — auto-routing, begin_task, work, end_task. Do not read skills/ directly.
+description: Skilling MCP lifecycle — list, suggest_skills, begin_task(skill_id), end_task. Do not read skills/ directly.
 alwaysApply: true
 ---
 
 # Skilling task lifecycle
 
-Use the **Skilling** MCP server for procedural skills. Do not read `skills/**/SKILL.md` from disk unless debugging.
-
-## Autonomous routing (Sprint F)
-
-A **`beforeSubmitPrompt`** hook may auto-run `begin_task` and write:
-
-- **`.skilling/session.json`** — active episode SOT (skill, summary, rationale, TTL)
-- **`.skilling/active-body.md`** — ephemeral skill body bridge (follow for this turn)
-
-If the session is already active and not expired, the hook skips routing. Opt-out: env `SKILLING_SKIP_AUTO_BEGIN=1` or file `.skilling/disable-auto-begin`.
+Use the **Skilling** MCP server for procedural skills. Do not read `skills/**/SKILL.md` from disk unless debugging. Full SOP is in MCP server instructions and the `skilling_workflow` prompt.
 
 ## Start of a focused task
 
 1. If **`.skilling/active-body.md`** exists, follow it for this turn.
-2. Else call **`get_session`**; if `active: false`, call **`begin_task`** with the user's goal (`response_detail` defaults to summary).
-3. Do **not** call **`begin_task`** again if the hook already routed unless switching topics (then **`end_task`** first).
-4. Follow skill **`body`** until the stage is done.
-5. Extension auto-registers TTL when `skilling.autoRegisterSession` is enabled (default).
+2. Else call **`get_session`**; if `active: false`:
+   - **`list`** when you need installed skill IDs
+   - Optionally **`suggest_skills`** for ranked hints (no inject)
+   - **`begin_task(skill_id, token_budget)`** with an explicit **`skill_id`** (300 discovery, 900 implement)
+3. Follow skill **`body`** until the stage is done.
+4. **`end_task`** before switching topic or skill (required).
+
+Do **not** call **`begin_task`** without **`skill_id`**. Do not rely on silent auto-routing for build tasks.
+
+## Autonomous hook (opt-in only)
+
+The **`beforeSubmitPrompt`** hook does **not** auto-inject by default. To enable legacy auto-inject: `SKILLING_HOOK_AUTO_INJECT=1`. Opt-out: `SKILLING_SKIP_AUTO_BEGIN=1` or `.skilling/disable-auto-begin`.
+
+When active, the hook writes **`.skilling/session.json`** and **`.skilling/active-body.md`**.
 
 ## User-facing presentation
 
-- After routing: **one sentence** using `summary` from the tool or session — never show skill menus, `alternatives`, or `list` output.
-- Do not ask the user to pick a `skill_id`.
+- After `begin_task`: **one sentence** using `summary` — never show skill menus, `candidates`, or raw score tables.
 
 ## End or switch tasks
 
-- Before an unrelated topic or new dev stage: **`end_task`** (uses `.skilling/session.json` when `correlation_id` is omitted).
-- Closing the composer runs **`sessionEnd`** cleanup + clears session and bridge files.
+- **`end_task`** before unrelated topics (uses `.skilling/session.json` when `correlation_id` is omitted).
+- Composer **`sessionEnd`** clears session and bridge files.
 
-## Catalog vs routing
+## Catalog vs discovery
 
-- **Normal coding / task work** — `begin_task` + orchestrator procedure; not `list`.
-- **Discover or install skills** — **`find-skills`** and [docs/SKILLS_CATALOG.md](docs/SKILLS_CATALOG.md) only when the user wants catalog growth.
+- **`list`** — official tier-0 catalog for picking `skill_id`
+- **`begin_task(find-skills, 300)`** — ecosystem discovery SOP
+- [docs/SKILLS_CATALOG.md](docs/SKILLS_CATALOG.md) when the user wants catalog growth
 
 ## Debugging only
 
-- Low-level tools (`list`, `select`, `load`, `cleanup`) — not for normal work.
+- **`select`** (alias for `suggest_skills`), **`load`**, **`cleanup`**

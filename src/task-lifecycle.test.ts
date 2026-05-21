@@ -19,23 +19,20 @@ const agentsSkills = path.join(repoRoot, '.agents', 'skills');
 const config = loadConfig(repoRoot, agentsSkills);
 
 describe('task-lifecycle', () => {
-  it('beginTask selects find-skills for discovery prompt', () => {
+  it('beginTask injects find-skills with token_budget=300', () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-'));
     try {
       const result = beginTask(agentsSkills, repo, config, {
-        prompt: 'npx skills find install a skill from skills.sh for API testing',
+        prompt: 'discover ecosystem skills for API testing',
+        skill_id: 'find-skills',
+        token_budget: 300,
       });
       assert.equal(result.skill_id, 'find-skills');
+      assert.equal(result.inject_mode, 'summary');
       assert.ok(result.correlation_id);
       assert.ok(result.body.length > 0);
       assert.ok(result.token_estimate > 0);
-      assert.ok(result.ttl_hint >= 0);
       assert.ok(result.summary);
-      assert.ok(result.title);
-      assert.equal('alternatives' in result, false);
-      const session = readSession(repo);
-      assert.equal(session?.correlation_id, result.correlation_id);
-      assert.equal(session?.summary, result.summary);
       endTask(repo);
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
@@ -60,15 +57,20 @@ describe('task-lifecycle', () => {
     }
   });
 
-  it('response_detail full includes alternatives when present', () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-full-'));
+  it('beginTask rejects missing skill_id', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-no-id-'));
     try {
-      const result = beginTask(agentsSkills, repo, config, {
-        prompt: 'find a skill for API testing',
-        response_detail: 'full',
-      });
-      assert.ok(result.skill_id);
-      endTask(repo);
+      assert.throws(
+        () =>
+          beginTask(agentsSkills, repo, config, {
+            prompt: 'build something',
+            skill_id: '',
+          }),
+        (e: unknown) =>
+          e instanceof SkillingError &&
+          e.code === 'VALIDATION_ERROR' &&
+          e.message.includes('requires skill_id'),
+      );
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
@@ -144,6 +146,30 @@ describe('task-lifecycle', () => {
     }
   });
 
+  it('getSession marks stale when TTL mostly elapsed', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-stale-'));
+    try {
+      writeSession(repo, {
+        skill_id: 'find-skills',
+        title: 'Find Skills',
+        summary: 'Using Find Skills',
+        rationale: 'test',
+        confidence: 1,
+        correlation_id: '00000000-0000-4000-8000-000000000088',
+        ttl_ms: 10_000,
+        started_at: new Date(Date.now() - 9_000).toISOString(),
+      });
+      const session = getSession(agentsSkills, repo, config);
+      assert.equal(session.active, true);
+      if (session.active) {
+        assert.equal(session.stale, true);
+      }
+      endTask(repo, '00000000-0000-4000-8000-000000000088');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('endTask rejects mismatched correlation_id', () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-end-mismatch-'));
     try {
@@ -186,6 +212,7 @@ describe('task-lifecycle', () => {
       });
       const second = beginTask(agentsSkills, repo, config, {
         prompt: 'find a skill for linting',
+        skill_id: 'find-skills',
         end_previous: true,
       });
       assert.equal(second.previous_ended, true);
@@ -211,29 +238,11 @@ describe('task-lifecycle', () => {
       });
       const result = beginTask(agentsSkills, repo, config, {
         prompt: 'find a skill for linting',
+        skill_id: 'find-skills',
       });
       assert.equal(result.previous_ended, false);
       assert.ok(result.skill_id);
       endTask(repo);
-    } finally {
-      fs.rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it('beginTask rejects low-confidence auto-select', () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-low-conf-'));
-    try {
-      assert.throws(
-        () =>
-          beginTask(agentsSkills, repo, config, {
-            prompt: 'deploy kubernetes cluster with helm charts and RBAC policies',
-          }),
-        (e: unknown) =>
-          e instanceof SkillingError &&
-          e.code === 'VALIDATION_ERROR' &&
-          (e.message.includes('No strong skill match') ||
-            e.message.includes('No skill matched')),
-      );
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
@@ -258,6 +267,23 @@ describe('task-lifecycle', () => {
         assert.equal(viaGet.body, begun.body);
         assert.ok(bridge.includes(begun.body.slice(0, 40)));
       }
+      endTask(repo);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('phase discovery uses token_budget 300 by default', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'Skilling-task-phase-'));
+    try {
+      const result = beginTask(agentsSkills, repo, config, {
+        prompt: 'scope the work',
+        skill_id: 'find-skills',
+        phase: 'discovery',
+      });
+      assert.equal(result.inject_mode, 'summary');
+      const session = readSession(repo);
+      assert.equal(session?.token_budget, 300);
       endTask(repo);
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });

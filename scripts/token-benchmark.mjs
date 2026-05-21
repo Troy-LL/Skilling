@@ -414,6 +414,23 @@ for (const n of steps) {
   );
 }
 
+// ── Section 2c: Staged pipeline (list → discovery → implement) ───────────────
+console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('  Section 2c: Staged Pipeline (shaped inject estimates)');
+console.log('  list + begin_task(find-skills,300) + begin_task(impl,900) + end_task');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+const findSkillsData = skillData.find((s) => s.id === 'find-skills');
+const discoveryTokens = findSkillsData?.summaryTokens ?? 0;
+const listCatalogTokens = totalTier1;
+const implementTokens = Math.round(avgCompactInjected || 0);
+const stagedTotal = listCatalogTokens + discoveryTokens + implementTokens;
+console.log(`  list (tier-0 catalog):           ${formatNum(listCatalogTokens)} tokens`);
+console.log(`  begin_task(find-skills, 300):    ${formatNum(discoveryTokens)} tokens (summary)`);
+console.log(`  begin_task(impl skill, 900):     ${formatNum(implementTokens)} tokens (compact avg)`);
+console.log(`  Staged total (one discovery + one implement stage): ${formatNum(stagedTotal)} tokens`);
+console.log(`  Naive baseline (all bodies):     ${formatNum(totalFull)} tokens\n`);
+
 // ── Section 4: Selection-Only Cost (Tier 1 vs Tier 2 selection) ──────────────
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('  Section 4: Selection Phase Cost');

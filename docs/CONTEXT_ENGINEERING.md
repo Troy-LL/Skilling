@@ -6,8 +6,8 @@ Skilling is built to push **inference-time** skill cost toward Skill0-style effi
 
 | Level | What the agent holds | Typical tokens | When |
 |-------|----------------------|----------------|------|
-| **0 — Plan** | `skill_plan` output only | ~200–800 | Multi-step work; no bodies yet |
-| **1 — Select** | Tier 1 summaries (in tool result, not pasted into chat) | ~0 in context if you trust MCP | Routing decision |
+| **0 — Catalog** | `list` output (on demand) | ~280 | Pick valid skill_ids |
+| **1 — Suggest** | `suggest_skills` result (no inject) | ~0 in context if MCP-only | Optional ranked hints |
 | **2 — Summary inject** | `inject_mode: summary` | ~50–150 | Tight context; skill is familiar |
 | **3 — Section inject** | `inject_mode: sections` | ~200–600 | Need procedure, not examples |
 | **4 — Compact inject** | `inject_mode: compact` | ~400–1200 | Default for large ecosystem skills |
@@ -17,12 +17,13 @@ Skilling is built to push **inference-time** skill cost toward Skill0-style effi
 
 ## Agent workflow (recommended)
 
-1. **`skill_plan`** with the goal — note `skills_needed` and `estimated_tokens`.
-2. **`begin_task`** with `token_budget` set to your remaining headroom (e.g. 800).
-3. If the returned `inject_mode` is `summary` or `compact` and work fails, **`load`** the same `skill_id` with `inject_mode: full` once — then **`end_task`** when done.
-4. **`end_task`** before the next unrelated topic (frees ongoing step cost).
+1. **`list`** when you need installed skill IDs (~280 tokens).
+2. **`begin_task(find-skills, token_budget=300)`** for ecosystem discovery (~72 tokens shaped).
+3. **`suggest_skills`** (optional) for ranked hints — agent picks **`skill_id`**.
+4. Per stage: **`begin_task(skill_id, token_budget=900)`** → follow body → **`end_task`** (required before next skill/topic).
+5. If shaped inject is too thin, **`load`** same `skill_id` with `inject_mode: full` once — then **`end_task`**.
 
-### `token_budget` auto depth
+### `token_budget` auto depth (inject only)
 
 When `inject_mode` is omitted:
 
@@ -30,9 +31,15 @@ When `inject_mode` is omitted:
 |----------------|----------------|
 | &lt; 350 | `summary` |
 | 350–899 | `compact` |
-| ≥ 900 | `full` (or skill `inject_mode_default`) |
+| ≥ 900 | skill `inject_mode_default` or config default |
 
-Override anytime with explicit `inject_mode` on `begin_task` / `load`.
+Precedence: explicit `inject_mode` → `token_budget` heuristics → skill `inject_mode_default` (budget ≥ 900) → config default.
+
+`token_budget` does **not** filter which skills you can select — use `select_max_tokens` on `suggest_skills` if needed.
+
+### Compact tradeoffs
+
+`compact` strips fenced code blocks and may truncate at 8 KB. Good for procedures; lossy for template-heavy skills. Response includes `truncated` and `omitted_code_blocks` when applicable. Bump to `inject_mode: full` when examples matter.
 
 ## Metadata overlays (ecosystem skills)
 
@@ -65,7 +72,7 @@ inject_sections:
 
 - Put long examples and reference tables in `<!-- internal-only -->` blocks.
 - Keep **procedure** in clear `## Procedure` / `## When to use` headings for `sections` mode.
-- Set **`token_estimate`** honestly so `token_budget` filtering works.
+- Set **`token_estimate`** honestly in metadata; it does not block selection unless you pass **`select_max_tokens`** on `suggest_skills`.
 
 ## What Skilling does not do (yet)
 
@@ -83,7 +90,7 @@ Skilling **does** collect the right habits for that path: plan-first, tiered loa
 {
   "defaultInjectMode": "compact",
   "maxInjectBytes": 8192,
-  "defaultTokenBudget": 2048
+  "defaultTokenBudget": 900
 }
 ```
 

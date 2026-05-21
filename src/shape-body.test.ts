@@ -58,4 +58,15 @@ describe('resolveInjectMode', () => {
   it('auto-selects compact for medium budgets', () => {
     assert.equal(resolveInjectMode(undefined, {}, 600), 'compact');
   });
+
+  it('prefers token_budget over inject_mode_default at low budget', () => {
+    assert.equal(resolveInjectMode(undefined, { inject_mode_default: 'compact' }, 300), 'summary');
+  });
+
+  it('uses inject_mode_default when budget is high', () => {
+    assert.equal(
+      resolveInjectMode(undefined, { inject_mode_default: 'compact' }, 900),
+      'compact',
+    );
+  });
 });
