@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SkillPilotConfig } from './config.js';
 import { CorrelationRegistry } from './correlation-registry.js';
-import { DEFAULT_TTL_MS, MAX_SELECT_INPUT_CHARS } from './constants.js';
+import { DEFAULT_TTL_MS, LOW_CONFIDENCE_THRESHOLD, MAX_SELECT_INPUT_CHARS } from './constants.js';
 import { SkillPilotError } from './errors.js';
 import { logToolOk } from './observability.js';
 import type { SkillFrontMatter } from './parse.js';
@@ -274,6 +274,15 @@ export function beginTask(
         'VALIDATION_ERROR',
         result.rationale +
           (result.warnings?.length ? ` warnings: ${result.warnings.join(', ')}` : ''),
+      );
+    }
+    if (
+      result.confidence < (config.planMinConfidence ?? LOW_CONFIDENCE_THRESHOLD) &&
+      result.warnings?.includes('low_confidence')
+    ) {
+      throw new SkillPilotError(
+        'VALIDATION_ERROR',
+        `No strong skill match (confidence ${result.confidence}). Proceed without skill injection, call find-skills to discover a skill, or pass an explicit skill_id.`,
       );
     }
     skillId = result.skill_id;

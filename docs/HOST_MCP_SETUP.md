@@ -28,6 +28,8 @@ Restart the `skillpilot` MCP server in Cursor. You should see **`skill_plan`**, 
 ### Selector and logging
 
 - **`SKILLPILOT_SELECTOR`**: only **`heuristic`** is implemented today. Values `embedding` or `llm` log a one-time warning and fall back to heuristic.
+- **`SKILLPILOT_SELECT_MIN_CONFIDENCE`**: minimum score to return a skill from `select` / `begin_task` (default `0.25`).
+- **`SKILLPILOT_PLAN_MIN_CONFIDENCE`**: minimum score for a skill to appear in `skill_plan` `skills_needed` (default `0.35`). `begin_task` rejects auto-select below this when `low_confidence` applies.
 - **`SKILLPILOT_LOG_PROMPTS=true`**: logs truncated prompt/goal snippets at debug level for `select`, `skill_plan`, and `begin_task` (stderr JSON lines).
 
 ## VS Code

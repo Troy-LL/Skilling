@@ -220,6 +220,25 @@ describe('task-lifecycle', () => {
     }
   });
 
+  it('beginTask rejects low-confidence auto-select', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-task-low-conf-'));
+    try {
+      assert.throws(
+        () =>
+          beginTask(agentsSkills, repo, config, {
+            prompt: 'deploy kubernetes cluster with helm charts and RBAC policies',
+          }),
+        (e: unknown) =>
+          e instanceof SkillPilotError &&
+          e.code === 'VALIDATION_ERROR' &&
+          (e.message.includes('No strong skill match') ||
+            e.message.includes('No skill matched')),
+      );
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('getSession include_body matches begin_task inject_mode and active-body bridge', () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpilot-task-inject-'));
     try {

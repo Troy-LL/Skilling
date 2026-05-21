@@ -4,6 +4,8 @@ import {
   DEFAULT_TOKEN_BUDGET,
   DEFAULT_TTL_MS,
   MAX_INJECT_BYTES,
+  PLAN_MIN_CONFIDENCE,
+  SELECT_MIN_CONFIDENCE,
 } from './constants.js';
 import type { InjectMode } from './shape-body.js';
 import { resolveSkillsMetaDir } from './skill-meta-overlay.js';
@@ -20,6 +22,8 @@ export type SkillPilotConfig = {
   logLevel: LogLevel;
   logPrompts: boolean;
   defaultInjectMode: InjectMode;
+  selectMinConfidence: number;
+  planMinConfidence: number;
 };
 
 type FileConfig = Partial<{
@@ -95,6 +99,19 @@ export function loadConfig(cwd: string, cliSkillRoot?: string): SkillPilotConfig
       ? injectModeRaw
       : 'full';
 
+  const selectMinConfidenceRaw = Number(
+    process.env['SKILLPILOT_SELECT_MIN_CONFIDENCE'] ?? SELECT_MIN_CONFIDENCE,
+  );
+  const planMinConfidenceRaw = Number(
+    process.env['SKILLPILOT_PLAN_MIN_CONFIDENCE'] ?? PLAN_MIN_CONFIDENCE,
+  );
+  const selectMinConfidence = Number.isFinite(selectMinConfidenceRaw)
+    ? selectMinConfidenceRaw
+    : SELECT_MIN_CONFIDENCE;
+  const planMinConfidence = Number.isFinite(planMinConfidenceRaw)
+    ? planMinConfidenceRaw
+    : PLAN_MIN_CONFIDENCE;
+
   return {
     skillsRoot,
     skillsMetaDir,
@@ -107,5 +124,7 @@ export function loadConfig(cwd: string, cliSkillRoot?: string): SkillPilotConfig
     logLevel: parseLogLevel(process.env['SKILLPILOT_LOG_LEVEL'] ?? file.log?.level),
     logPrompts: process.env['SKILLPILOT_LOG_PROMPTS'] === 'true',
     defaultInjectMode,
+    selectMinConfidence,
+    planMinConfidence,
   };
 }

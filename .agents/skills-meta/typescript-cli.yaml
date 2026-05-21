@@ -1,0 +1,16 @@
+tags:
+  - typescript
+  - node
+  - cli
+  - script
+triggers:
+  - cli tool
+  - command line tool
+  - node script
+  - typescript script
+  - npm package cli
+  - simple cli
+  - terminal app
+min_confidence: 0.3
+inject_mode_default: compact
+inject_brief: "Build Node/TypeScript CLI tools and scripts — args, env, file I/O — not MCP servers."

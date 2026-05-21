@@ -51,8 +51,34 @@ See **`docs/mcp-config.example.json`**.
 |----------|------|
 | **find-skills** | Discover and install ecosystem skills |
 | **com-skillpilot-orchestrator** | `begin_task` / `end_task` / `skill_plan` workflow |
-| **mcp-builder**, **skill-creator**, **typescript-mcp-server-generator** | MCP and skill authoring |
+| **mcp-builder**, **skill-creator**, **typescript-mcp-server-generator** | MCP and skill authoring (MCP-only — not general TypeScript scripts) |
+| **typescript-cli** | Node/TypeScript CLI tools and small scripts (not MCP servers) |
+| **frontend-design** | Distinctive web UI / React components |
 | **create-hook**, **create-rule** | Git hooks (create-hook) and Cursor rules (create-rule); use **com-skillpilot-orchestrator** for Cursor MCP lifecycle hooks |
+
+## Routing accuracy
+
+The bundled catalog is **meta/MCP-heavy by design**. For general coding tasks:
+
+- **`typescript-cli`** — CLI tools and Node scripts
+- **`frontend-design`** — UI/card/widget work
+- **`find-skills`** — discover domain skills from [skills.sh](https://skills.sh/) when nothing bundled fits
+
+Tune routing without editing skill bodies via **`.agents/skills-meta/<id>.yaml`**:
+
+| Overlay field | Purpose |
+|---------------|---------|
+| `triggers` | Phrases that strongly signal this skill |
+| `tags` | Token overlap for heuristic matching |
+| `min_confidence` | Per-skill floor (e.g. `0.45` for MCP skills) |
+| `inject_mode_default` | Default inject tier (`compact` recommended for large skills) |
+
+Selector thresholds (env overrides):
+
+- **`SKILLPILOT_SELECT_MIN_CONFIDENCE`** — default `0.25` (minimum to return any skill)
+- **`SKILLPILOT_PLAN_MIN_CONFIDENCE`** — default `0.35` (minimum for `skill_plan` `skills_needed`)
+
+MCP-tagged skills require **mcp** or an exact MCP trigger in the query; otherwise their score is capped to avoid false positives on generic TypeScript prompts.
 
 ## Notes
 

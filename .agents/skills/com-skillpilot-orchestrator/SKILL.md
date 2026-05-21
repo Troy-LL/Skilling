@@ -35,10 +35,11 @@ Skills live under **`.agents/skills/`** (`SKILL_ROOT`). Do not read template cop
 
 ## Procedure
 
-1. For multi-step goals, call **`skill_plan`** with the goal; review `skills_needed` and `estimated_tokens`.
-2. If **`.skillpilot/active-body.md`** exists (hook auto-routed), follow it for this turn; otherwise call **`get_session`** — if `active: false`, call **`begin_task`** with the user goal and optional `phase` (`response_detail` defaults to summary). Pass **`token_budget`** when context is tight (auto-picks `inject_mode`: summary / compact / full). Prefer **`inject_mode: compact`** for large ecosystem skills; escalate to **`full`** only if stuck.
-3. Obey skill **`body`** (from tool result or bridge file) until the stage is done.
-4. **`end_task`** before switching topic or phase; start a new **`begin_task`** for the next stage.
+1. For multi-step goals, call **`skill_plan`** with the goal; review `skills_needed`, `confidence`, and `estimated_tokens`.
+2. **Low-confidence routing:** if `skill_plan` returns `confidence < 0.35` or `skills_needed` is empty, **do not** call **`begin_task`** with a guessed skill — proceed with native coding or call **`find-skills`** to discover a better match. MCP skills (`mcp-builder`, `typescript-mcp-server-generator`) apply only when the user explicitly wants **MCP server** work.
+3. If **`.skillpilot/active-body.md`** exists (hook auto-routed), follow it for this turn; otherwise call **`get_session`** — if `active: false`, call **`begin_task`** with the user goal and optional `phase` (`response_detail` defaults to summary). Pass **`token_budget`** when context is tight (auto-picks `inject_mode`: summary / compact / full). Prefer **`inject_mode: compact`** for large ecosystem skills; escalate to **`full`** only if stuck.
+4. Obey skill **`body`** (from tool result or bridge file) until the stage is done.
+5. **`end_task`** before switching topic or phase; start a new **`begin_task`** for the next stage.
 
 ## User-facing presentation
 

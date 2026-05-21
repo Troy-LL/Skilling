@@ -23,8 +23,17 @@ export const MAX_CORRELATION_REGISTRY = 1024;
 /** Max characters for select prompt / goal inputs. */
 export const MAX_SELECT_INPUT_CHARS = 8_000;
 
-/** Minimum normalized confidence to return a skill_id (SPEC ~0.1). */
-export const SELECT_MIN_CONFIDENCE = 0.1;
+/** Minimum normalized confidence to return a skill_id (raised from 0.1 to reduce weak matches). */
+export const SELECT_MIN_CONFIDENCE = 0.25;
+
+/** Minimum normalized confidence to include a skill in skill_plan skills_needed. */
+export const PLAN_MIN_CONFIDENCE = 0.35;
+
+/** Normalized score below this triggers low_confidence warning on select/begin_task. */
+export const LOW_CONFIDENCE_THRESHOLD = 0.35;
+
+/** Cap for MCP-tagged skills when query lacks MCP domain anchors. */
+export const MCP_DOMAIN_SCORE_CAP = 0.15;
 
 /** Legacy raw score floor (kept for tests that use raw scores in alternatives). */
 export const SELECT_MIN_SCORE = 2;

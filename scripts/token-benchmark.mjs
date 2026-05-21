@@ -46,7 +46,7 @@ const SCENARIOS = [
   },
   {
     id: 'mcp_builder',
-    prompt: 'build a new MCP server with Python tools, evaluation harness, and testing',
+    prompt: 'build an mcp server with Python tools, evaluation harness, and testing',
     expected_skill_id: 'mcp-builder',
   },
   {
@@ -63,6 +63,16 @@ const SCENARIOS = [
     id: 'orchestrator',
     prompt: 'begin a skillpilot task, run skill_plan, and track the full session lifecycle',
     expected_skill_id: 'com-skillpilot-orchestrator',
+  },
+  {
+    id: 'typescript_cli',
+    prompt: 'build a simple TypeScript CLI weather tool that fetches forecast data from an API',
+    expected_skill_id: 'typescript-cli',
+  },
+  {
+    id: 'weather_card_ui',
+    prompt: 'create a beautiful weather card UI with React and Tailwind CSS',
+    expected_skill_id: 'frontend-design',
   },
   {
     id: 'no_match',

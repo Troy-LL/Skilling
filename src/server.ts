@@ -8,7 +8,7 @@ import { SkillPilotError, errorPayload, type SkillPilotErrorCode } from './error
 import { importSkillFromAgents, resolveRepoRoot } from './import-skill.js';
 import { logPromptSnippet, logToolError, logToolOk } from './observability.js';
 import { PACKAGE_VERSION } from './package-version.js';
-import { getSelector, planFromCandidates } from './selector/index.js';
+import { getSelector } from './selector/index.js';
 import {
   beginTask,
   endTask,
@@ -243,7 +243,8 @@ export function createSkillPilotServer(skillRoot: string, config: SkillPilotConf
         const index = getSkillIndex(rootDisplay, config.skillsMetaDir);
         if (!index.ok) return toolError('STORE_UNAVAILABLE', formatIndexError(index));
         logPromptSnippet('skill_plan', trimmedGoal);
-        const plan = planFromCandidates([...index.metas.values()], {
+        const selector = getSelector(config);
+        const plan = selector.plan([...index.metas.values()], {
           goal: trimmedGoal,
           context: context?.trim(),
           max_skills: max_skills ?? 5,

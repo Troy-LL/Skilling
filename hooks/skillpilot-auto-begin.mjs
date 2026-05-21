@@ -150,6 +150,8 @@ async function main() {
     if (payload?.skill_id && payload?.body) {
       writeActiveBody(workspaceRoot, payload.skill_id, payload.body);
       log(`routed to ${payload.skill_id}`);
+    } else if (payload === null) {
+      log('no strong skill match; proceeding without injection');
     }
     break;
   }

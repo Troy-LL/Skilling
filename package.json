@@ -1,6 +1,6 @@
 {
   "name": "skillpilot-mcp",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "SkillPilot MCP — filesystem skill router (list / select / load / cleanup)",
   "type": "module",
   "main": "dist/index.js",

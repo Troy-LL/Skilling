@@ -13,5 +13,8 @@ triggers:
   - style a web app
   - beautiful react ui
   - tailwind css
+  - weather card
+  - card widget ui
+  - landing page
 inject_mode_default: compact
 inject_brief: "Design distinctive, production-grade UI; avoid generic AI aesthetics; match stack (React/Tailwind/etc.)."

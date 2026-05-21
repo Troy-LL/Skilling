@@ -8,6 +8,8 @@ export type SelectOptions = {
   workspace_path?: string;
   token_budget?: number;
   top_k?: number;
+  selectMinConfidence?: number;
+  planMinConfidence?: number;
 };
 
 export type SelectAlternative = {
@@ -36,6 +38,8 @@ export type PlanOptions = {
   goal: string;
   context?: string;
   max_skills?: number;
+  selectMinConfidence?: number;
+  planMinConfidence?: number;
 };
 
 export type PlanResult = {

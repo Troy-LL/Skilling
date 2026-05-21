@@ -1,4 +1,9 @@
-import { SELECT_MIN_CONFIDENCE } from '../constants.js';
+import {
+  LOW_CONFIDENCE_THRESHOLD,
+  MCP_DOMAIN_SCORE_CAP,
+  PLAN_MIN_CONFIDENCE,
+  SELECT_MIN_CONFIDENCE,
+} from '../constants.js';
 import type { SkillFrontMatter } from '../parse.js';
 import type {
   PlanOptions,
@@ -20,6 +25,35 @@ export function tokenize(text: string): string[] {
 
 function injectableCandidates(candidates: SkillFrontMatter[]): SkillFrontMatter[] {
   return candidates.filter((m) => m.inject !== false);
+}
+
+function isMcpSkill(meta: SkillFrontMatter): boolean {
+  if (meta.tags?.includes('mcp')) return true;
+  return meta.id.includes('-mcp-') || meta.id.startsWith('mcp-') || meta.id.endsWith('-mcp');
+}
+
+function queryHasMcpAnchor(queryLower: string, tokens: Set<string>): boolean {
+  if (queryLower.includes('model context protocol')) return true;
+  return tokens.has('mcp');
+}
+
+function hasExactTriggerHit(meta: SkillFrontMatter, queryLower: string): boolean {
+  for (const trigger of meta.triggers ?? []) {
+    if (queryLower.includes(trigger.toLowerCase())) return true;
+  }
+  return false;
+}
+
+function applyMcpDomainCap(
+  meta: SkillFrontMatter,
+  normalized: number,
+  queryLower: string,
+  tokens: Set<string>,
+): number {
+  if (!isMcpSkill(meta)) return normalized;
+  if (hasExactTriggerHit(meta, queryLower)) return normalized;
+  if (queryHasMcpAnchor(queryLower, tokens)) return normalized;
+  return Math.min(normalized, MCP_DOMAIN_SCORE_CAP);
 }
 
 function scoreSkill(
@@ -74,7 +108,8 @@ function scoreSkill(
     (client && meta.clients?.includes(client) ? 0.2 : 0);
 
   const maxPossible = 1.0 + 0.6 + 0.9 + 0.9 + 0.3 + 0.2;
-  const normalized = Math.min(1, raw / maxPossible);
+  let normalized = Math.min(1, raw / maxPossible);
+  normalized = applyMcpDomainCap(meta, normalized, queryLower, tokens);
 
   return { raw, normalized };
 }
@@ -100,6 +135,7 @@ export function selectFromCandidates(
   const queryLower = combined.toLowerCase();
   const tokens = new Set(tokenize(combined));
   const budget = options.token_budget;
+  const globalMin = options.selectMinConfidence ?? SELECT_MIN_CONFIDENCE;
 
   let pool = injectableCandidates(candidates);
   if (budget !== undefined) {
@@ -118,7 +154,7 @@ export function selectFromCandidates(
   const scored = pool
     .map((meta) => {
       const { raw, normalized } = scoreSkill(meta, tokens, queryLower, options.client);
-      const minConf = meta.min_confidence ?? SELECT_MIN_CONFIDENCE;
+      const minConf = meta.min_confidence ?? globalMin;
       return { meta, raw, normalized, minConf };
     })
     .filter((s) => s.normalized >= s.minConf)
@@ -146,7 +182,7 @@ export function selectFromCandidates(
 
   const top = scored[0]!;
   const warnings: string[] = [];
-  if (top.normalized < 0.35) warnings.push('low_confidence');
+  if (top.normalized < LOW_CONFIDENCE_THRESHOLD) warnings.push('low_confidence');
   if (scored[1] && scored[1].normalized === top.normalized) warnings.push('tie_with_alternative');
 
   return {
@@ -162,19 +198,27 @@ export function planFromCandidates(
   candidates: SkillFrontMatter[],
   options: PlanOptions,
 ): PlanResult {
+  const planMin = options.planMinConfidence ?? PLAN_MIN_CONFIDENCE;
+  const selectMin = options.selectMinConfidence ?? SELECT_MIN_CONFIDENCE;
+
   const selectResult = selectFromCandidates(candidates, {
     prompt: options.goal,
     context: options.context,
     top_k: options.max_skills ?? 5,
+    selectMinConfidence: selectMin,
   });
+
+  const combined = [options.goal, options.context].filter(Boolean).join(' ');
+  const queryLower = combined.toLowerCase();
+  const tokens = new Set(tokenize(combined));
 
   const ranked = injectableCandidates(candidates)
     .map((meta) => {
-      const combined = [options.goal, options.context].filter(Boolean).join(' ');
-      const { normalized } = scoreSkill(meta, new Set(tokenize(combined)), combined.toLowerCase());
-      return { meta, normalized };
+      const { normalized } = scoreSkill(meta, tokens, queryLower);
+      const minConf = Math.max(meta.min_confidence ?? selectMin, planMin);
+      return { meta, normalized, minConf };
     })
-    .filter((s) => s.normalized >= SELECT_MIN_CONFIDENCE)
+    .filter((s) => s.normalized >= s.minConf)
     .sort((a, b) => b.normalized - a.normalized)
     .slice(0, options.max_skills ?? 5);
 
@@ -213,11 +257,14 @@ export function planFromCandidates(
     });
   }
 
+  const topConfidence =
+    ranked.length > 0 ? Math.round(ranked[0]!.normalized * 1000) / 1000 : null;
+
   return {
     plan,
     skills_needed,
     estimated_tokens,
-    confidence: selectResult.skill_id ? selectResult.confidence : null,
+    confidence: topConfidence ?? (selectResult.skill_id ? selectResult.confidence : null),
   };
 }
 
