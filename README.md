@@ -6,21 +6,33 @@
 
 ---
 
-## Install
+## Install & setup
 
-**npm:** [`skilling`](https://www.npmjs.com/package/skilling)
-
-### Zero-config (recommended)
-
-From your project root:
+From your **project root**, copy one of these:
 
 ```bash
 npm install skilling
 ```
 
-**Postinstall runs automatically:** seeds **`find-skills`** into `.agents/skills/` and runs **`skilling setup`** (writes MCP configs for detected IDEs with absolute paths). Re-installs are safe — existing `skilling` MCP entries are skipped unless you pass `--force`.
+```bash
+npx -y skilling setup
+```
 
-Then **restart your IDE** so it loads the MCP server (required after upgrades — see [Migrating to v2](#migrating-to-v2)).
+Both install Skilling, seed **`find-skills`** into `.agents/skills/`, and write MCP configs for detected IDEs. Then **restart your IDE** so it loads the MCP server.
+
+| Command | Best for |
+|---------|----------|
+| `npm install skilling` | Adds Skilling to `package.json`; setup runs automatically on install |
+| `npx -y skilling setup` | One-off setup without adding a dependency |
+
+Refresh MCP paths after moving the project or upgrading:
+
+```bash
+npx skilling setup --force
+```
+
+<details>
+<summary>Advanced — manual MCP JSON, IDE-specific notes, opt-out</summary>
 
 ### After install (by IDE)
 
@@ -30,17 +42,11 @@ Then **restart your IDE** so it loads the MCP server (required after upgrades �
 | **Claude Code** | MCP auto-config runs when `.mcp.json` or `.claude/` exists in the project |
 | **Claude Desktop / Windsurf / Zed** | `SKILL_ROOT` is baked to the project you ran setup from; use `npx skilling setup --force` when switching projects |
 
-Manual re-run or refresh after moving the project / upgrading Node:
-
-```bash
-npx skilling setup --force
-```
-
 Opt out: `SKILLING_SKIP_AUTO_SETUP=1` (seed only) or `SKILLING_SKIP_POSTINSTALL=1` (skip all postinstall steps). See [`docs/HOST_MCP_SETUP.md`](docs/HOST_MCP_SETUP.md).
 
-### Manual MCP JSON (advanced)
+### Manual MCP JSON
 
-`npm install skilling` + `npx skilling setup` handles this automatically with absolute paths. Use manual JSON only when you cannot run postinstall or need a custom config.
+`npm install skilling` or `npx skilling setup` handles this with absolute paths. Use manual JSON only when you cannot run setup.
 
 **Cursor / Claude Desktop / Windsurf** (`mcpServers`):
 
@@ -81,13 +87,15 @@ See [`docs/HOST_MCP_SETUP.md`](docs/HOST_MCP_SETUP.md) for the full host compati
 
 **Recommended — full plugin** (MCP + skills + hooks + rules): open **[Skilling on Cursor Directory](https://cursor.directory/plugins/skilling)** and click **Add to Cursor** on that page.
 
-**MCP server only** (stdio router via `npx`, no plugin bundle) — one-click deeplink:
+**MCP server only** — one-click deeplink:
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=skilling&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInNraWxsaW5nQGxhdGVzdCJdfQ==)
 
 Regenerate the MCP deeplink after config changes: `npm run deeplink`
 
-**Requirements:** Node.js 18+
+</details>
+
+**Requirements:** Node.js 18+ · npm package: [`skilling`](https://www.npmjs.com/package/skilling)
 
 ---
 
